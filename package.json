@@ -1,0 +1,25 @@
+{
+  "name": "car-stock-vercel-native",
+  "version": "4.8.0",
+  "private": true,
+  "type": "module",
+  "description": "Car stock and claims: Vercel Node.js API + PostgreSQL",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "demo": "node scripts/demo.mjs",
+    "dev": "node --env-file-if-exists=.env.local scripts/dev.mjs",
+    "build": "node scripts/check.mjs",
+    "test": "node --test",
+    "db:setup": "node --env-file-if-exists=.env.local scripts/database.mjs setup",
+    "db:export": "node --env-file-if-exists=.env.local scripts/database.mjs export",
+    "db:config": "node --env-file-if-exists=.env.local scripts/database.mjs config"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.14"
+  }
+}

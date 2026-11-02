@@ -1,0 +1,6 @@
+test/
+node_modules/
+.env*
+backup*.json
+README.md
+demo-data/

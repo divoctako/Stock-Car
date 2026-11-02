@@ -1,0 +1,8 @@
+{
+  "models": ["Stock Atto 3", "Stock Dolphin", "Stock Seal", "Stock Sealion 6", "Stock Sealion 7", "Stock M6", "Stock Han", "Stock Tang"],
+  "colors": ["ขาว", "ดำ", "เทา", "เงิน", "ฟ้า", "น้ำเงิน", "แดง", "เขียว"],
+  "colorHex": { "ขาว": "#eef0f2", "ดำ": "#22262b", "เทา": "#8b9099", "เงิน": "#c3c8ce", "ฟ้า": "#6db3e8", "น้ำเงิน": "#213a8f", "แดง": "#c0392b", "เขียว": "#2e7d32" },
+  "locations": ["ไม่ระบุ Location"],
+  "banks": [],
+  "settings": { "brandName": "Stock" }
+}

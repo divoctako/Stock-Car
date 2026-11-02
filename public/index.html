@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#ffffff">
+<script src="/theme.js"></script>
+<title>ระบบจัดการสต๊อกรถยนต์</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23034b3f'/><text x='32' y='44' font-size='30' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='bold'>S</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/premium.css">
+</head>
+<body>
+<!-- Key out the original logo's white canvas while retaining its colored artwork. -->
+<svg width="0" height="0" aria-hidden="true" style="position:absolute;pointer-events:none">
+  <defs>
+    <filter id="logo-transparent" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -1 -1 -1 0 3"/>
+      <feComposite in2="SourceGraphic" operator="in"/>
+    </filter>
+    <filter id="logo-dark-text" color-interpolation-filters="sRGB">
+      <feOffset in="SourceGraphic" dx="0" dy="0" x="0" y="0" width="100%" height="49%" result="diamond"/>
+      <feFlood flood-color="#e3f3ed" x="0" y="49%" width="100%" height="51%" result="letterColor"/>
+      <feComposite in="letterColor" in2="SourceAlpha" operator="in" result="letters"/>
+      <feMerge><feMergeNode in="diamond"/><feMergeNode in="letters"/></feMerge>
+    </filter>
+  </defs>
+</svg>
+
+<div id="root">
+  <div class="boot">
+    <div class="spinner"></div>
+    <div>กำลังเชื่อมต่อระบบ…</div>
+  </div>
+</div>
+
+<div id="overlay-root"></div>
+<div id="toast-root"></div>
+<div id="busy-root"></div>
+
+<script src="/app.js" defer></script>
+</body>
+</html>
