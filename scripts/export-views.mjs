@@ -15,7 +15,7 @@ try {
     (SELECT count(*) FROM public.export_claims) AS claims,
     (SELECT count(*) FROM public.export_audit) AS audit,
     (SELECT count(*) FROM public.cars) AS source_cars`);
-  if (rows.length !== 1 || Number(rows[0].cars) !== rows[0].source_cars) throw new Error('Export car count does not match source');
+  if (rows.length !== 1 || Number(rows[0].cars) !== Number(rows[0].source_cars)) throw new Error('Export car count does not match source');
   await client.query('COMMIT');
   console.log('Export views created and verified:', JSON.stringify(rows[0]));
 } catch (error) {
@@ -25,3 +25,4 @@ try {
 } finally {
   await client.end();
 }
+
