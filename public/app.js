@@ -35,6 +35,7 @@ var AGE_BUCKETS = [
   { key:'g',  label:'เกิน 12 เดือน', min:366,max:Infinity, cls:'c-red',   hex:'var(--chart-red)' }
 ];
 var MODAL_META = {
+  'delete-car':['ลบรถออกจากระบบ','เฉพาะ Admin · ลบรถพร้อมรายการเคลมที่เกี่ยวข้อง','ยืนยันลบรถ','560px'],
   'current-password':['รหัสผ่านปัจจุบัน','เฉพาะ Admin เท่านั้น','','520px'],
   'promote-floor':['นำรถเข้า Stock','ตรวจข้อมูลครบก่อนย้ายจาก Floor Plan','ยืนยันนำเข้า Stock','720px'],
   'role-password':['ตั้งรหัสผ่านตำแหน่ง','กำหนดรหัสผ่านใหม่สำหรับการเข้าสู่ระบบ','บันทึกรหัสผ่าน','520px'],
@@ -137,8 +138,11 @@ function isFull(c) {
   return true;
 }
 function can() {
-  return { stock: S.role === 'admin' || S.role === 'keeper',
+  return { deleteCars: S.role === 'admin' && S.sessionRole === 'admin', stock: S.role === 'admin' || S.role === 'keeper',
            claims: S.role === 'admin' || S.role === 'claim' };
+}
+function deleteCarButton(car) {
+  return can().deleteCars ? '<button class="btn-sm delete-car-btn" data-act="open-delete-car" data-id="'+car.id+'">ลบรถ</button>' : '';
 }
 function allowedTabs(role){
   if(role==='sales')return ['dashboard-stock','stock'];
@@ -810,7 +814,7 @@ function viewLatestCars(d) {
         '<td><span class="dot" style="background:' + esc(colorHex(car.color)) + '"></span> ' + esc(car.color) + '</td><td><span class="pill ' + sm[1] + '">' + esc(sm[0]) + '</span></td>' +
         '<td>' + ageTag(daysSince(car.receiveDate)) + '</td><td>' + esc(car.receiveDate || '—') + '</td><td><details class="row-menu"><summary aria-label="จัดการรถ ' + esc(car.vin) + '">⋯</summary><div class="row-actions">' +
         '<button class="btn-sm ghost" data-act="view-stock" data-id="' + car.id + '">ดูในสต๊อก</button>' +
-        (can().stock ? '<button class="btn-sm soft" data-act="open-edit" data-id="' + car.id + '">แก้ไข</button>' : '') + '</div></details></td></tr>';
+        (can().stock ? '<button class="btn-sm soft" data-act="open-edit" data-id="' + car.id + '">แก้ไข</button>' : '') + deleteCarButton(car) + '</div></details></td></tr>';
     }).join('') + '</tbody></table></div>' + (rows.length ? '' : '<div class="empty">' + (query ? 'ไม่พบรถที่ตรงกับการค้นหา' : 'ยังไม่มีรถในสต๊อก') + '</div>') + '</div>';
 }
 
@@ -870,7 +874,7 @@ function floorMissing(car){return Object.keys(FLOOR_REQUIRED).filter(function(ke
 function viewFloor(){
   var all=S.cars.filter(function(c){return c.status==='FloorPlan';}),query=S.floorQuery.trim().toLowerCase();
   var rows=all.filter(function(c){return [c.vin,c.model,c.submodel,c.color,c.location,c.batteryNumber,c.frontMotorNumber].join(' ').toLowerCase().indexOf(query)>=0;});
-  return '<div class="page-head"><div><h1 class="page">รถใน Floor Plan</h1><p class="sub">รถที่รอข้อมูลครบก่อนเข้า Stock · '+all.length+' คัน</p></div><div style="flex:1"></div>'+(can().stock?'<button class="btn btn-outline" data-act="open-import-cars">นำเข้า CSV</button><button class="btn btn-primary" data-act="open-add">+ เพิ่มรถใน Floor Plan</button>':'')+'</div><div class="filters">'+searchBox('floor',S.floorQuery,'ค้นหา VIN รุ่น สี หรือสถานที่…','ค้นหารถใน Floor Plan')+'</div><div class="table-wrap"><div class="scroll-x"><table class="data" style="min-width:1000px"><thead><tr><th>VIN</th><th>รุ่น / รุ่นย่อย</th><th>สี / สถานที่</th><th>วันที่รับ / ครบจ่าย</th><th>ความครบถ้วน</th><th>จัดการ</th></tr></thead><tbody>'+rows.map(function(c){var missing=floorMissing(c);return '<tr><td>'+esc(c.vin||'ยังไม่ระบุ VIN')+'</td><td>'+esc(c.model||'—')+'<br>'+esc(c.submodel||'—')+'</td><td>'+esc(c.color||'—')+'<br>'+esc(c.location||'—')+'</td><td>'+esc(c.receiveDate||'—')+'<br>'+esc(c.paymentDueDate||'—')+'</td><td><span class="pill '+(missing.length?'c-amber':'c-green')+'">'+(missing.length?'ขาด '+missing.length+' ช่อง':'ข้อมูลครบ')+'</span></td><td>'+(can().stock?'<div class="row-actions"><button class="btn-sm ghost" data-act="open-edit" data-id="'+c.id+'">แก้ไข</button><button class="btn-sm soft" data-act="open-promote-floor" data-id="'+c.id+'">นำเข้า Stock</button></div>':'ดูอย่างเดียว')+'</td></tr>';}).join('')+'</tbody></table></div>'+(rows.length?'':'<div class="empty">ยังไม่มีรถใน Floor Plan ที่ตรงกับการค้นหา</div>')+'</div>';
+  return '<div class="page-head"><div><h1 class="page">รถใน Floor Plan</h1><p class="sub">รถที่รอข้อมูลครบก่อนเข้า Stock · '+all.length+' คัน</p></div><div style="flex:1"></div>'+(can().stock?'<button class="btn btn-outline" data-act="open-import-cars">นำเข้า CSV</button><button class="btn btn-primary" data-act="open-add">+ เพิ่มรถใน Floor Plan</button>':'')+'</div><div class="filters">'+searchBox('floor',S.floorQuery,'ค้นหา VIN รุ่น สี หรือสถานที่…','ค้นหารถใน Floor Plan')+'</div><div class="table-wrap"><div class="scroll-x"><table class="data" style="min-width:1000px"><thead><tr><th>VIN</th><th>รุ่น / รุ่นย่อย</th><th>สี / สถานที่</th><th>วันที่รับ / ครบจ่าย</th><th>ความครบถ้วน</th><th>จัดการ</th></tr></thead><tbody>'+rows.map(function(c){var missing=floorMissing(c);return '<tr><td>'+esc(c.vin||'ยังไม่ระบุ VIN')+'</td><td>'+esc(c.model||'—')+'<br>'+esc(c.submodel||'—')+'</td><td>'+esc(c.color||'—')+'<br>'+esc(c.location||'—')+'</td><td>'+esc(c.receiveDate||'—')+'<br>'+esc(c.paymentDueDate||'—')+'</td><td><span class="pill '+(missing.length?'c-amber':'c-green')+'">'+(missing.length?'ขาด '+missing.length+' ช่อง':'ข้อมูลครบ')+'</span></td><td>'+(can().stock?'<div class="row-actions"><button class="btn-sm ghost" data-act="open-edit" data-id="'+c.id+'">แก้ไข</button><button class="btn-sm soft" data-act="open-promote-floor" data-id="'+c.id+'">นำเข้า Stock</button>'+deleteCarButton(c)+'</div>':'ดูอย่างเดียว')+'</td></tr>';}).join('')+'</tbody></table></div>'+(rows.length?'':'<div class="empty">ยังไม่มีรถใน Floor Plan ที่ตรงกับการค้นหา</div>')+'</div>';
 }
 function viewStock(d) {
   var c = can();
@@ -896,7 +900,7 @@ function viewStock(d) {
       ? '<span style="display:inline-flex;gap:7px;justify-content:flex-end">' +
         '<button class="btn-sm ghost" data-act="open-edit" data-id="' + car.id + '">แก้ไข</button>' +
         '<button class="btn-sm soft" data-act="open-deliver" data-id="' + car.id + '">ส่งมอบ</button>' +
-        '<button class="btn-sm ghost" data-act="open-transfer" data-id="' + car.id + '">ตัดขาย</button></span>'
+        '<button class="btn-sm ghost" data-act="open-transfer" data-id="' + car.id + '">ตัดขาย</button>' + deleteCarButton(car) + '</span>'
       : '<span style="font-size:14px;color:var(--muted)">—</span>';
     return '<tr>' +
       '<td class="mono" style="font-weight:500;color:var(--text-2)">' + esc(car.vin) + '</td>' +
@@ -993,7 +997,7 @@ function claimCard(car, mode) {
     '<div><div class="claim-title">' + esc(car.model) + ' <span>· ' + esc(car.submodel) + '</span></div>' +
       '<div class="claim-meta">VIN ' + esc(car.vin) + (car.releaseDate ? ' · ส่งมอบ ' + esc(car.releaseDate) + ' · ราคาขาย ' + fmt(car.sellPrice) + ' ฿' : ' · ' + esc(statusLabel(car.status)) + ' · ' + esc(car.location || '—')) + '</div>' +
       '<div class="claim-meta2">รหัสขาย <span style="font-weight:600">' + esc(car.salesCode) + '</span> · ลูกค้า <span style="font-weight:600">' + esc(car.customerName) + '</span></div></div>' +
-    '<div style="flex:1"></div>' + right + pill + actions + '</div>' +
+    '<div style="flex:1"></div>' + right + pill + actions + deleteCarButton(car) + '</div>' +
     '<div class="claim-items">' + claimItemRows(car.claims) + '</div></div>';
 }
 
@@ -1077,10 +1081,10 @@ function viewTransfers(d) {
       '<td><span style="display:inline-flex;align-items:center;gap:7px"><span class="dot" style="background:' + esc(colorHex(car.color)) + '"></span>' + esc(car.color) + '</span></td>' +
       '<td style="color:var(--muted)">' + esc(car.receiveDate) + '</td>' +
       '<td style="color:var(--text-2);font-weight:500">' + esc(car.transferDate) + '</td>' +
-      '<td style="color:var(--text-2)">' + esc(car.transferTo) + '</td></tr>';
+      '<td style="color:var(--text-2)">' + esc(car.transferTo) + '</td>' + (can().deleteCars ? '<td>'+deleteCarButton(car)+'</td>' : '') + '</tr>';
   }).join('');
   var table = '<div class="table-wrap"><div class="scroll-x"><table class="data" style="min-width:760px"><thead><tr>' +
-    '<th>VIN no.</th><th>รุ่นรถ / รุ่นย่อย</th><th>สี</th><th>วันที่รับเข้า</th><th>วันที่ตัดขาย</th><th>ปลายทาง</th>' +
+    '<th>VIN no.</th><th>รุ่นรถ / รุ่นย่อย</th><th>สี</th><th>วันที่รับเข้า</th><th>วันที่ตัดขาย</th><th>ปลายทาง</th>' + (can().deleteCars ? '<th>จัดการ</th>' : '') +
     '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
     (d.transferCars.length ? '' : '<div class="empty">' + (d.transferFiltered ? 'ไม่พบรายการที่ตรงกับการค้นหา' : 'ยังไม่มีประวัติการตัดขาย') + '</div>') + '</div>';
   return '<div>' + head + filters + table + '</div>';
@@ -1147,7 +1151,9 @@ function viewModal() {
   if(m.type==='import-cars' && f.target==='floor')meta=['นำเข้า Floor Plan จาก CSV','เว้นข้อมูลที่ยังไม่มีได้ ตรวจ VIN ซ้ำก่อนนำเข้า','ยืนยันนำเข้า Floor Plan','1040px'];
   var body = '';
 
-  if(m.type === 'current-password') {
+  if(m.type === 'delete-car') {
+    body='<div class="car-line">'+esc(carLine)+'</div><p>ต้องการลบรถคันนี้ออกจากระบบหรือไม่?</p><p class="delete-car-warning">รายการเคลมที่เกี่ยวข้อง '+(car?(car.claims||[]).length:0)+' รายการจะถูกลบด้วย การลบนี้ไม่สามารถกู้คืนผ่านหน้าแอปได้</p><p class="sub">ระบบจะเก็บประวัติการลบไว้</p>';
+  } else if(m.type === 'current-password') {
     body='<p class="sub">ตำแหน่ง: <strong>'+esc(ROLES[f.targetRole].label)+'</strong></p>'+(f.loading?'<p role="status">กำลังโหลด…</p>':f.currentPassword!=null?'<label class="fld">รหัสผ่านปัจจุบัน<input readonly autocomplete="off" type="'+(f.visible?'text':'password')+'" value="'+esc(f.currentPassword)+'"></label><button class="btn btn-outline" data-act="toggle-current-password">'+(f.visible?'ซ่อนรหัสผ่าน':'แสดงรหัสผ่าน')+'</button>':'<p class="sub" role="status">'+esc(f.reason || 'ไม่มีรหัสผ่านที่แสดงได้')+'</p>');
   } else if(m.type === 'role-password') {
     body='<p class="sub">ตำแหน่ง: <strong>'+esc(ROLES[f.targetRole].label)+'</strong> · ยาว 8–128 ตัวอักษร</p>'+fld('รหัสผ่านใหม่',inp('password','password',f.password,'รหัสผ่านใหม่','','autocomplete="new-password" maxlength="128"'))+fld('ยืนยันรหัสผ่าน',inp('passwordConfirm','password',f.passwordConfirm,'กรอกรหัสผ่านอีกครั้ง','','autocomplete="new-password" maxlength="128"'))+'<p class="sub">เมื่อบันทึก ผู้ใช้ตำแหน่งนี้ต้องเข้าสู่ระบบใหม่</p>';
@@ -1289,7 +1295,7 @@ function viewModal() {
       '<button class="modal-x" data-act="close-modal">✕</button></div>' +
       '<div class="modal-body">' + body + '<div id="modal-feedback" class="modal-feedback" role="alert"></div></div>' +
       '<div class="modal-foot">' + (m.type === 'dashboard-car' && m.fromGroup ? '<button class="btn btn-outline" data-act="back-dashboard-group">กลับไปรายชื่อรถ</button>' : '') + (m.returnTo ? '<button class="btn btn-outline" data-act="close-modal">กลับรายละเอียดรถ</button>' : '') + (m.type === 'add-vehicle-claim' ? '<button class="btn btn-outline" data-act="back-claim-car">ย้อนกลับ</button>' : '') + '<button class="btn btn-outline" data-act="close-modal">' + (m.type.indexOf('dashboard-') === 0 ? 'ปิด' : 'ยกเลิก') + '</button>' +
-      (meta[2] ? '<button class="btn btn-primary" data-act="confirm"' + ((m.type === 'import-cars' && (f.loading || !f.preview || f.preview.invalid || !f.preview.total)) || (m.type==='promote-floor' && missing.length) ? ' disabled' : '') + '>' + esc(meta[2]) + '</button>' : '') + '</div>' +
+      (meta[2] ? '<button class="btn '+(m.type==='delete-car'?'btn-danger':'btn-primary')+'" data-act="confirm"' + ((m.type === 'import-cars' && (f.loading || !f.preview || f.preview.invalid || !f.preview.total)) || (m.type==='promote-floor' && missing.length) ? ' disabled' : '') + '>' + esc(meta[2]) + '</button>' : '') + '</div>' +
     '</div></div>';
 }
 
@@ -1561,6 +1567,10 @@ function onClick(e) {
     case 'clear-claimsdone': S.claimsDoneQuery=''; S.claimsDoneMonthFilter=''; S.claimsDoneYearFilter=''; render(); break;
     case 'clear-transfer':   S.transferQuery=''; S.transferModelFilter=''; render(); break;
 
+    case 'open-delete-car':
+      if(!can().deleteCars || !carById(id))break;
+      S.modal={type:'delete-car',carId:id};S.form={};render();break;
+
     case 'open-add':
       if(!can().stock)break;
       S.modal = { type:'add',floor:S.tab==='floor' };
@@ -1683,6 +1693,10 @@ function doInspect(id) { call('markInspected', { carId: id, role: S.role }); }
 function doConfirm() {
   var m = S.modal, f = S.form;
   if (!m) return;
+  if(m.type==='delete-car') {
+    if(!can().deleteCars || !carById(m.carId) || S.busy)return;
+    call('deleteCar',{carId:m.carId,role:'admin'},function(){S.modal=null;S.form={};});return;
+  }
   if(m.type==='role-password') {
     if(f.password!==f.passwordConfirm)return toast('รหัสผ่านยืนยันไม่ตรงกัน',true);
     if(f.password.length<8 || f.password.length>128)return toast('รหัสผ่านต้องยาว 8–128 ตัวอักษร',true);

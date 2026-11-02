@@ -429,3 +429,8 @@ label.fld input,label.fld select,label.fld textarea,label.fld-sm input,label.fld
 [data-theme="dark"] .claim-car-option:has(input:checked){background:rgba(39,92,65,.7)}
 [data-theme="dark"] .claim-car-option input{accent-color:#a3e8c9}
 @media(max-width:600px){.claim-car-search{align-items:stretch;flex-direction:column}.claim-car-tools>div{width:100%}.claim-car-tools button{flex:1}.claim-car-option{padding:12px;gap:10px}.claim-car-list{max-height:260px}}
+
+/* Admin vehicle deletion */
+.delete-car-btn{color:var(--red);border:1px solid currentColor;background:transparent}
+.btn-danger{background:var(--red);color:#fff;border-color:var(--red)}
+.delete-car-warning{color:var(--red);line-height:1.6}
