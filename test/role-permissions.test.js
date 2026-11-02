@@ -79,7 +79,7 @@ test('frontend settings save only the current role scope even when its draft con
   const {S,beginSettings,saveSettings,setCall}=context.ui;
   let sent;setCall((action,body)=>{sent={action,body};});
   S.config=initialState().config;S.role='claim';beginSettings();S.settingsDraft.banks=['Bank'];S.settingsDraft.models=['Do not send'];S.settingsDirty=true;
-  saveSettings();assert.equal(sent.action,'saveConfig');assert.deepEqual(Object.keys(sent.body.payload.config),['banks']);
+  saveSettings();assert.equal(sent.action,'saveConfig');assert.deepEqual(Object.keys(sent.body.payload.config),['banks','claimTypes']);
   S.role='keeper';beginSettings();S.settingsDraft.banks=['Do not send'];S.settingsDirty=true;saveSettings();
   assert.equal(Object.keys(sent.body.payload.config).sort().join(','),'colorHex,colors,locations,models,statusLabels');
 });

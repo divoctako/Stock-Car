@@ -1,4 +1,5 @@
 test/
+.demo-runtime/
 node_modules/
 .env*
 backup*.json

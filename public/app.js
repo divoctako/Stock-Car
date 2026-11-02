@@ -84,10 +84,10 @@ var S = {
   dashboardFilters:{query:'',model:'',submodel:'',color:'',location:'',status:'',year:'',age:'',due:'',dueFrom:'',dueTo:''},
   dashboardFiltersOpen:false,
   dashboardDrill:null,
-  inspectQuery:'',
+  inspectQuery:'', inspectModelFilter:'',
   claimScopes: { claims:'vehicle', inspect:'vehicle', claimsdone:'vehicle' },
-  claimQuery:'', claimPayFilter:'', claimMonthFilter:'', claimYearFilter:'',
-  claimsDoneQuery:'', claimsDoneMonthFilter:'', claimsDoneYearFilter:'',
+  claimQuery:'', claimModelFilter:'', claimPayFilter:'', claimMonthFilter:'', claimYearFilter:'',
+  claimsDoneQuery:'', claimsDoneModelFilter:'', claimsDoneMonthFilter:'', claimsDoneYearFilter:'',
   transferQuery:'', transferModelFilter:''
 };
 var _toastTimer = null;
@@ -315,6 +315,7 @@ function derive() {
   var cq = q(S.claimQuery);
   var claimCars = deliveredPending.filter(function (c) {
     if (cq && !match(c, cq)) return false;
+    if (S.claimModelFilter && c.model !== S.claimModelFilter) return false;
     var some = (c.claims||[]).some(isRecv);
     if (S.claimPayFilter === 'some' && !some) return false;
     if (S.claimPayFilter === 'none' && some) return false;
@@ -323,20 +324,21 @@ function derive() {
     if (S.claimYearFilter  && p[0] !== S.claimYearFilter)  return false;
     return true;
   }).sort(byDate);
-  var claimFiltered = !!(cq || S.claimPayFilter || S.claimMonthFilter || S.claimYearFilter);
+  var claimFiltered = !!(cq || S.claimModelFilter || S.claimPayFilter || S.claimMonthFilter || S.claimYearFilter);
 
   var iq = q(S.inspectQuery);
-  var inspectCars = awaitingInspect.filter(function (c) { return !iq || match(c, iq); }).sort(byDate);
+  var inspectCars = awaitingInspect.filter(function (c) { return (!iq || match(c, iq)) && (!S.inspectModelFilter || c.model === S.inspectModelFilter); }).sort(byDate);
 
   var dq = q(S.claimsDoneQuery);
   var claimsDoneCars = deliveredDone.filter(function (c) {
     if (dq && !match(c, dq)) return false;
+    if (S.claimsDoneModelFilter && c.model !== S.claimsDoneModelFilter) return false;
     var p = ym(c.releaseDate);
     if (S.claimsDoneMonthFilter && p[1] !== S.claimsDoneMonthFilter) return false;
     if (S.claimsDoneYearFilter  && p[0] !== S.claimsDoneYearFilter)  return false;
     return true;
   }).sort(byDate);
-  var claimsDoneFiltered = !!(dq || S.claimsDoneMonthFilter || S.claimsDoneYearFilter);
+  var claimsDoneFiltered = !!(dq || (S.claimScopes.claimsdone !== 'other' && S.claimsDoneModelFilter) || S.claimsDoneMonthFilter || S.claimsDoneYearFilter);
 
   // ---- รายการเคลมอื่น (ไม่ผูกกับรถ) ----
   var otherAll = S.otherClaims || [];
@@ -567,12 +569,14 @@ var SETTING_GROUPS = [
   { key:'models', title:'รุ่นรถ', description:'ใช้ในแบบฟอร์มรถและตัวกรองรุ่น', placeholder:'เช่น Stock Atto 3' },
   { key:'colors', title:'สีรถ', description:'ชื่อสีและสีที่แสดงบนการ์ดรถ', placeholder:'เช่น ขาวมุก' },
   { key:'locations', title:'สถานที่ / Location', description:'โชว์รูม สาขา หรือลานจอดรถ', placeholder:'เช่น โชว์รูมสำนักงานใหญ่' },
+  { key:'claimTypes', title:'รายการเคลม', description:'ชื่อรายการที่เลือกได้ในแบบฟอร์มเคลม และยังพิมพ์ชื่อเองได้', placeholder:'เช่น เงินสนับสนุนการขาย' },
   { key:'banks', title:'บัญชีธนาคาร', description:'บัญชีที่เลือกเมื่อรับเงินเคลม', placeholder:'ธนาคาร · เลขบัญชี · ชื่อบัญชี' }
 ];
 function beginSettings() {
   S.settingsDraftRole=S.role;
   S.settingsDraft = JSON.parse(JSON.stringify(S.config));
   var draft = S.settingsDraft;
+  draft.claimTypes = draft.claimTypes || [];
   S.settingsColors = draft.colors.map(function (name) { return draft.colorHex[name] || '#c3c8ce'; });
   draft.statusLabels = Object.assign({ Available:'พร้อมขาย', Reserved:'จอง', Delivered:'ส่งมอบแล้ว', Transferred:'ตัดขายแล้ว' }, draft.statusLabels || {});
   draft.claimPayLabels = Object.assign({ some:'รับบางส่วนแล้ว', none:'ยังไม่ได้รับเลย' }, draft.claimPayLabels || {});
@@ -599,10 +603,10 @@ function viewSettings() {
         '<input class="setting-value" aria-label="' + group.title + ' รายการที่ ' + (index + 1) + '" data-in="setting-value" data-k="setting-' + group.key + '-' + index + '"' + attrs + ' value="' + esc(value) + '" maxlength="240" placeholder="' + group.placeholder + '">' +
         '<div class="setting-row-actions"><button class="setting-icon" data-act="setting-up"' + attrs + ' aria-label="ย้าย' + group.title + 'รายการที่ ' + (index + 1) + 'ขึ้น"' + (!index ? ' disabled' : '') + '>↑</button>' +
         '<button class="setting-icon" data-act="setting-down"' + attrs + ' aria-label="ย้าย' + group.title + 'รายการที่ ' + (index + 1) + 'ลง"' + (index === list.length - 1 ? ' disabled' : '') + '>↓</button>' +
-        '<button class="setting-icon setting-remove" data-act="setting-remove"' + attrs + ' aria-label="ลบ' + group.title + 'รายการที่ ' + (index + 1) + '"' + (group.key !== 'banks' && list.length === 1 ? ' disabled' : '') + '>×</button></div></div>';
+        '<button class="setting-icon setting-remove" data-act="setting-remove"' + attrs + ' aria-label="ลบ' + group.title + 'รายการที่ ' + (index + 1) + '"' + (['banks','claimTypes'].indexOf(group.key)<0 && list.length === 1 ? ' disabled' : '') + '>×</button></div></div>';
     }).join('');
     return '<section class="card setting-card"><div class="setting-card-head"><div><h2>' + group.title + '</h2><p>' + group.description + '</p></div><span class="pill c-gray">' + list.length + ' รายการ</span></div>' +
-      '<div class="setting-options">' + (rows || '<div class="setting-empty">ยังไม่มีบัญชีธนาคาร เพิ่มบัญชีที่ทีมใช้รับเงินได้เลย</div>') + '</div>' +
+      '<div class="setting-options">' + (rows || '<div class="setting-empty">ยังไม่มีรายการ กดเพิ่มตัวเลือกได้เลย</div>') + '</div>' +
       '<div class="setting-card-foot"><button class="btn-sm soft" data-act="setting-add" data-group="' + group.key + '"' + (list.length >= 200 ? ' disabled' : '') + '>+ เพิ่ม' + group.title + '</button></div></section>';
   }).join('');
   var fixed = (S.role==='claim'?[]:Object.keys(draft.statusLabels)).map(function (key) {
@@ -613,7 +617,7 @@ function viewSettings() {
   var months = draft.monthNames.map(function (name, index) {
     return '<label class="fld"><span>เดือน ' + String(index + 1).padStart(2, '0') + '</span><input data-in="setting-month" data-k="setting-month-' + index + '" data-idx="' + index + '" value="' + esc(name) + '" maxlength="80"></label>';
   }).join('');
-  return '<div class="page-head settings-page-head"><div><h1 class="page">ตั้งค่า</h1><p class="sub">'+(S.role==='keeper'?'ตั้งค่าเกี่ยวกับรถ: รุ่น สี สถานที่ และชื่อสถานะรถ':S.role==='claim'?'ตั้งค่าบัญชีธนาคารสำหรับรับเงินเคลม':'จัดการตัวเลือก Dropdown ทั้งระบบจากที่เดียว')+'</p></div><span id="settings-state" class="pill ' + (S.settingsDirty ? 'c-amber' : 'c-green') + '">' + (S.settingsDirty ? 'มีการเปลี่ยนแปลงที่ยังไม่บันทึก' : 'ใช้ค่าที่บันทึกแล้ว') + '</span></div>' +
+  return '<div class="page-head settings-page-head"><div><h1 class="page">ตั้งค่า</h1><p class="sub">'+(S.role==='keeper'?'ตั้งค่าเกี่ยวกับรถ: รุ่น สี สถานที่ และชื่อสถานะรถ':S.role==='claim'?'ตั้งค่าบัญชีธนาคารและชื่อรายการเคลม':'จัดการตัวเลือก Dropdown ทั้งระบบจากที่เดียว')+'</p></div><span id="settings-state" class="pill ' + (S.settingsDirty ? 'c-amber' : 'c-green') + '">' + (S.settingsDirty ? 'มีการเปลี่ยนแปลงที่ยังไม่บันทึก' : 'ใช้ค่าที่บันทึกแล้ว') + '</span></div>' +
     '<div class="settings-toolbar"><p>ปรับชื่อ ลำดับ และตัวเลือก แล้วกดบันทึกเพื่อให้ทั้งทีมใช้งาน</p><div><button class="btn btn-outline" data-act="settings-reload">โหลดค่าล่าสุด</button><button id="settings-save" class="btn btn-primary" data-act="settings-save"' + (!S.settingsDirty ? ' disabled' : '') + '>บันทึกการตั้งค่า</button></div></div>' +
     (S.role==='admin'?'<section class="card card-pad" style="margin-bottom:20px"><h2 class="card-title">รหัสผ่านแต่ละตำแหน่ง</h2><p class="sub">Admin จัดการรหัสผ่านได้ ผู้ใช้ต้องเข้าสู่ระบบตามตำแหน่ง กดดูรหัสปัจจุบันได้เฉพาะ Admin</p><div class="role-password-list">'+Object.keys(ROLES).map(function(role){return '<div><strong>'+esc(ROLES[role].label)+'</strong><span class="sub">'+(S.rolePasswordStatus[role]?'ตั้งรหัสผ่านแล้ว':role==='admin'?'ใช้รหัส Admin เริ่มต้น':'ยังไม่เปิดใช้งาน')+'</span><button class="btn btn-outline" data-act="show-role-password" data-v="'+role+'">ดูรหัสปัจจุบัน '+esc(ROLES[role].label)+'</button><button class="btn btn-outline" data-act="open-role-password" data-v="'+role+'">ตั้งรหัสผ่าน '+esc(ROLES[role].label)+'</button></div>';}).join('')+'</div></section>':'') +
     '<div class="setting-grid">' + groups + '</div>' +
@@ -622,14 +626,14 @@ function viewSettings() {
 }
 
 function canSettingGroup(group){
-  return S.role==='admin' || (S.role==='keeper' && ['models','colors','locations'].indexOf(group)>=0) || (S.role==='claim' && group==='banks');
+  return S.role==='admin' || (S.role==='keeper' && ['models','colors','locations'].indexOf(group)>=0) || (S.role==='claim' && ['banks','claimTypes'].indexOf(group)>=0);
 }
 function saveSettings() {
   if (!S.settingsDraft || !S.settingsDirty || !['admin','keeper','claim'].includes(S.role)) return;
   var config = JSON.parse(JSON.stringify(S.settingsDraft));
   config.colorHex = Object.fromEntries(config.colors.map(function (name, i) { return [name, S.settingsColors[i]]; }));
   if(S.role==='keeper')config={models:config.models,colors:config.colors,colorHex:config.colorHex,locations:config.locations,statusLabels:config.statusLabels};
-  if(S.role==='claim')config={banks:config.banks};
+  if(S.role==='claim')config={banks:config.banks,claimTypes:config.claimTypes};
   call('saveConfig', { role:S.role, payload:{ config:config, expectedRevision:S.settingsRevision } }, beginSettings);
 }
 
@@ -970,6 +974,8 @@ function claimItemRows(claims) {
 function claimCard(car, mode) {
   var t = claimTotals(car);
   var c = can();
+  var prices = (c.stock ? 'ราคาซื้อ ' + (car.buyPrice == null || car.buyPrice === '' ? 'ไม่ระบุ' : fmt(car.buyPrice) + ' ฿') + ' · ' : '') +
+    'ราคาขาย ' + (car.sellPrice == null || car.sellPrice === '' ? 'ไม่ระบุ' : fmt(car.sellPrice) + ' ฿');
   var right, pill, actions = '';
 
   if (mode === 'claims') {
@@ -995,7 +1001,8 @@ function claimCard(car, mode) {
   return '<div class="card card-pad"><div class="claim-card-head">' +
     '<span class="dot-lg" style="background:' + esc(colorHex(car.color)) + '"></span>' +
     '<div><div class="claim-title">' + esc(car.model) + ' <span>· ' + esc(car.submodel) + '</span></div>' +
-      '<div class="claim-meta">VIN ' + esc(car.vin) + (car.releaseDate ? ' · ส่งมอบ ' + esc(car.releaseDate) + ' · ราคาขาย ' + fmt(car.sellPrice) + ' ฿' : ' · ' + esc(statusLabel(car.status)) + ' · ' + esc(car.location || '—')) + '</div>' +
+      '<div class="claim-meta">VIN ' + esc(car.vin) + (car.releaseDate ? ' · ส่งมอบ ' + esc(car.releaseDate) : ' · ' + esc(statusLabel(car.status)) + ' · ' + esc(car.location || '—')) + '</div>' +
+      '<div class="claim-meta claim-prices">' + esc(prices) + '</div>' +
       '<div class="claim-meta2">รหัสขาย <span style="font-weight:600">' + esc(car.salesCode) + '</span> · ลูกค้า <span style="font-weight:600">' + esc(car.customerName) + '</span></div></div>' +
     '<div style="flex:1"></div>' + right + pill + actions + deleteCarButton(car) + '</div>' +
     '<div class="claim-items">' + claimItemRows(car.claims) + '</div></div>';
@@ -1034,6 +1041,9 @@ function claimList(rows, other, mode, empty) {
 }
 
 // ---------- 3. Claims ----------
+function claimModelOptions(cars) {
+  return Array.from(new Set((S.config.models||[]).concat(cars.map(function(car){return car.model;}).filter(Boolean))));
+}
 function viewClaims(d) {
   var c = can(), other = S.claimScopes.claims === 'other';
   var head = '<div class="page-head"><div><h1 class="page">เคลมเงิน</h1>' +
@@ -1041,7 +1051,7 @@ function viewClaims(d) {
     (c.claims ? (other ? '<button class="btn btn-primary" data-act="open-other">+ เพิ่มรายการเคลมที่ไม่เกี่ยวกับรถ</button>' : '<button class="btn btn-primary" data-act="open-vehicle-claim">+ เพิ่มงานเคลมเกี่ยวกับรถ</button>') :
       !c.claims ? '<span class="readonly-pill">โหมดดูอย่างเดียว (Read-only)</span>' : '') + '</div>';
   var filters = '<div class="filters">' + searchBox('claims', S.claimQuery, other ? 'ค้นหารายละเอียด, บัญชีธนาคาร...' : 'ค้นหา VIN, รุ่นรถ...') +
-    (other ? '' : selectBox('claimPay', S.claimPayFilter, 'สถานะเคลมทั้งหมด', [{value:'some',label:payLabel('some')},{value:'none',label:payLabel('none')}]) +
+    (other ? '' : selectBox('claimModel', S.claimModelFilter, 'รุ่นรถทั้งหมด', claimModelOptions(d.deliveredPending)) + selectBox('claimPay', S.claimPayFilter, 'สถานะเคลมทั้งหมด', [{value:'some',label:payLabel('some')},{value:'none',label:payLabel('none')}]) +
       selectBox('claimMonth', S.claimMonthFilter, 'ทุกเดือน (ส่งมอบ)', monthOptions()) + selectBox('claimYear', S.claimYearFilter, 'ทุกปี', d.releaseYears)) +
     clearBtn('clear-claim', other ? !!S.claimQuery.trim() : d.claimFiltered) + '</div>';
   var list = claimList(other ? d.otherPendingRows : d.claimCars, other, 'claims',
@@ -1053,9 +1063,9 @@ function viewClaims(d) {
 function viewInspect(d) {
   var other = S.claimScopes.inspect === 'other';
   var head = '<div class="page-head-simple"><h1 class="page">ตรวจงาน</h1><p class="sub">รายการที่รับเงินแล้ว รอตรวจสอบก่อนปิดงาน</p></div>';
-  var filters = '<div class="filters">' + searchBox('inspect', S.inspectQuery, other ? 'ค้นหารายละเอียด, บัญชีธนาคาร...' : 'ค้นหา VIN, รุ่นรถ...') + '</div>';
+  var filters = '<div class="filters">' + searchBox('inspect', S.inspectQuery, other ? 'ค้นหารายละเอียด, บัญชีธนาคาร...' : 'ค้นหา VIN, รุ่นรถ...') + (other ? '' : selectBox('inspectModel',S.inspectModelFilter,'รุ่นรถทั้งหมด',claimModelOptions(d.awaitingInspect))) + clearBtn('clear-inspect',!!(S.inspectQuery.trim() || (!other && S.inspectModelFilter))) + '</div>';
   return '<div>' + head + claimScopeTabs('inspect', d.awaitingInspect.length, d.otherInspect.length) + claimPanel('inspect', filters +
-    claimList(other ? d.otherInspectRows : d.inspectCars, other, 'inspect', S.inspectQuery.trim() ? 'ไม่พบรายการที่ตรงกับการค้นหา' : 'ยังไม่มีรายการรอตรวจงาน')) + '</div>';
+    claimList(other ? d.otherInspectRows : d.inspectCars, other, 'inspect', (S.inspectQuery.trim() || (!other && S.inspectModelFilter)) ? 'ไม่พบรายการที่ตรงกับการค้นหา' : 'ยังไม่มีรายการรอตรวจงาน')) + '</div>';
 }
 
 // ---------- 5. Claims done ----------
@@ -1063,7 +1073,7 @@ function viewClaimsDone(d) {
   var other = S.claimScopes.claimsdone === 'other';
   var head = '<div class="page-head-simple"><h1 class="page">เคลมเงินแล้ว</h1><p class="sub">รายการที่รับเงินและตรวจสอบเรียบร้อยแล้ว</p></div>';
   var filters = '<div class="filters">' + searchBox('claimsdone', S.claimsDoneQuery, other ? 'ค้นหารายละเอียด, บัญชีธนาคาร...' : 'ค้นหา VIN, รุ่นรถ...') +
-    selectBox('claimsDoneMonth', S.claimsDoneMonthFilter, other ? 'ทุกเดือน (รับเงิน)' : 'ทุกเดือน (ส่งมอบ)', monthOptions()) +
+    (other ? '' : selectBox('claimsDoneModel',S.claimsDoneModelFilter,'รุ่นรถทั้งหมด',claimModelOptions(d.deliveredDone))) + selectBox('claimsDoneMonth', S.claimsDoneMonthFilter, other ? 'ทุกเดือน (รับเงิน)' : 'ทุกเดือน (ส่งมอบ)', monthOptions()) +
     selectBox('claimsDoneYear', S.claimsDoneYearFilter, 'ทุกปี', other ? d.otherYears : d.releaseYears) + clearBtn('clear-claimsdone', d.claimsDoneFiltered) + '</div>';
   return '<div>' + head + claimScopeTabs('claimsdone', d.deliveredDone.length, d.otherDone.length) + claimPanel('claimsdone', filters +
     claimList(other ? d.otherDoneRows : d.claimsDoneCars, other, 'done', d.claimsDoneFiltered ? 'ไม่พบรายการที่ตรงกับการค้นหา' : 'ยังไม่มีรายการที่ตรวจสอบเรียบร้อยแล้ว')) + '</div>';
@@ -1147,6 +1157,7 @@ function viewModal() {
   var m = S.modal, f = S.form, meta = MODAL_META[m.type] || ['','','ยืนยัน','560px'];
   var car = m.carId ? carById(m.carId) : null;
   var carLine = car ? (car.model + ' · ' + car.submodel + ' · สี' + car.color + ' · VIN ' + car.vin) : '';
+  if(car && m.type==='deliver')carLine+=' · ราคาซื้อ '+(car.buyPrice==null || car.buyPrice===''?'ไม่ระบุ':fmt(car.buyPrice)+' บาท');
   if(m.floor)meta=[m.type==='add'?'เพิ่มรถใน Floor Plan':'แก้ไขรถใน Floor Plan','กรอกเท่าที่มีได้ ต้องครบทุกช่องก่อนย้ายเข้า Stock','บันทึก Floor Plan','680px'];
   if(m.type==='import-cars' && f.target==='floor')meta=['นำเข้า Floor Plan จาก CSV','เว้นข้อมูลที่ยังไม่มีได้ ตรวจ VIN ซ้ำก่อนนำเข้า','ยืนยันนำเข้า Floor Plan','1040px'];
   var body = '';
@@ -1202,7 +1213,7 @@ function viewModal() {
     var selectedCars = selectedClaimCars();
     body = '<div class="claim-car-tools"><strong>รถที่เลือก ' + selectedCars.length + ' คัน</strong></div><div class="claim-car-list claim-car-review">' +
       selectedCars.map(function (item) { return '<div class="claim-car-option"><span>' + claimCarLabel(item) + '</span></div>'; }).join('') + '</div>' +
-      '<div class="form-grid" style="margin-top:20px">' + fld('รายละเอียดการเคลม (เหมือนกันทุกคัน)', inp('detail','text',f.detail,'เช่น เงินสนับสนุนการขาย / ค่าอะไหล่','', 'maxlength="240"'), true) +
+      '<div class="form-grid" style="margin-top:20px">' + fld('รายละเอียดการเคลม (เหมือนกันทุกคัน)', inp('detail','text',f.detail,'เช่น เงินสนับสนุนการขาย / ค่าอะไหล่','', 'maxlength="240" list="claim-detail-options" autocomplete="off"'), true) +
       fld('ยอดเงินเคลมต่อคัน (บาท)', inp('amount','number',f.amount,'0','', 'min="0.01" step="0.01"'), true) + '</div>' +
       '<div class="sum-bar"><span>รวม <strong>' + selectedCars.length + '</strong> คัน × ยอดเคลมต่อคัน</span><strong data-vehicle-claim-total>' + fmt((Number(f.amount) || 0) * selectedCars.length) + ' ฿</strong></div>';
   } else if (m.type === 'add' || m.type === 'edit') {
@@ -1234,7 +1245,7 @@ function viewModal() {
   } else if (m.type === 'deliver') {
     var rows = (f.claims || []).map(function (ci, i) {
       return '<div class="row-inline" data-claim-index="' + i + '">' +
-        '<input class="detail" data-k="claim-' + i + '-detail" data-in="claim-' + i + '-detail" value="' + esc(ci.detail) + '" placeholder="รายละเอียดเงินเคลม เช่น ส่วนลดโรงงาน">' +
+        '<input class="detail" data-k="claim-' + i + '-detail" list="claim-detail-options" autocomplete="off" data-in="claim-' + i + '-detail" value="' + esc(ci.detail) + '" placeholder="รายละเอียดเงินเคลม เช่น ส่วนลดโรงงาน">' +
         '<input class="amount" type="number" data-k="claim-' + i + '-amount" data-in="claim-' + i + '-amount" value="' + esc(ci.amount) + '" placeholder="ยอด (บาท)">' +
         '<button class="btn-del" data-act="remove-claim" data-idx="' + i + '">×</button></div>';
     }).join('');
@@ -1262,7 +1273,7 @@ function viewModal() {
       return '<div class="claim-edit' + (paid ? ' paid' : '') + '" data-claim-index="' + i + '">' +
         '<div class="claim-edit-top">' +
           '<label class="fld-sm" style="flex:1">รายละเอียดรายการเคลม' +
-            '<input data-k="claim-' + i + '-detail" data-in="claim-' + i + '-detail" value="' + esc(ci.detail) + '" placeholder="รายละเอียดเงินเคลม"></label>' +
+            '<input data-k="claim-' + i + '-detail" list="claim-detail-options" autocomplete="off" data-in="claim-' + i + '-detail" value="' + esc(ci.detail) + '" placeholder="รายละเอียดเงินเคลม"></label>' +
           amountCell +
           '<span data-claim-status class="pill-sm wide ' + (paid ? 'c-green' : 'c-amber') + '">' + (paid ? 'รับแล้ว' : 'รอรับ') + '</span>' +
           delCell +
@@ -1288,6 +1299,8 @@ function viewModal() {
       '<span>คงเหลือรอรับ <span data-claim-total="pending" style="font-weight:600;color:var(--amber)">' + fmt(outTotal) + ' ฿</span></span></div>';
   }
 
+  if(['deliver','claim','other','add-vehicle-claim'].indexOf(m.type)>=0)body+='<datalist id="claim-detail-options">'+(S.config.claimTypes||[]).map(function(value){return '<option value="'+esc(value)+'"></option>';}).join('')+'</datalist><p class="sub">ชื่อรายการเคลม: เลือกจากรายการ หรือพิมพ์เองได้</p>';
+
   return '<div class="overlay" data-act="close-modal">' +
     '<div role="dialog" aria-modal="true" aria-labelledby="modal-title" class="modal' + (m.type === 'add' || m.type === 'edit' ? ' car-details-modal' : '') + '" style="width:' + meta[3] + '" data-stop="1">' +
       '<div class="modal-head"><div><div id="modal-title" class="modal-title">' + esc(meta[0]) + '</div>' +
@@ -1305,7 +1318,7 @@ function viewModal() {
 var SEARCH_MAP = { floor:'floorQuery',stock:'stockQuery', claims:'claimQuery', transfers:'transferQuery',
                    claimsdone:'claimsDoneQuery', inspect:'inspectQuery' };
 var FILTER_MAP = { stockStatus:'stockStatusFilter', stockLocation:'stockLocationFilter', stockSubmodel:'stockSubmodelFilter',stockColor:'stockColorFilter',stockYear:'stockYearFilter',
-                   stockModel:'stockModelFilter', claimPay:'claimPayFilter',
+                   stockModel:'stockModelFilter', claimModel:'claimModelFilter', inspectModel:'inspectModelFilter', claimsDoneModel:'claimsDoneModelFilter', claimPay:'claimPayFilter',
                    claimMonth:'claimMonthFilter', claimYear:'claimYearFilter',
                    claimsDoneMonth:'claimsDoneMonthFilter', claimsDoneYear:'claimsDoneYearFilter',
                    transferModel:'transferModelFilter' };
@@ -1496,7 +1509,7 @@ function onClick(e) {
       break;
     }
     case 'view-other-pending':
-      S.tab='claims'; S.claimScopes.claims='other'; S.claimQuery=''; S.claimPayFilter=''; S.claimMonthFilter=''; S.claimYearFilter=''; render(); break;
+      S.tab='claims'; S.claimScopes.claims='other'; S.claimQuery=''; S.claimModelFilter=''; S.claimPayFilter=''; S.claimMonthFilter=''; S.claimYearFilter=''; render(); break;
     case 'toggle-sidebar':
       S.sidebarOpen = !S.sidebarOpen; render();
       if (S.sidebarOpen) document.querySelector('nav.sidebar .nav-btn.on').focus();
@@ -1520,9 +1533,9 @@ function onClick(e) {
       var scope = el.getAttribute('data-v');
       if (!Object.prototype.hasOwnProperty.call(S.claimScopes, S.tab) || ['vehicle','other'].indexOf(scope) < 0 || S.claimScopes[S.tab] === scope) break;
       S.claimScopes[S.tab] = scope;
-      if (S.tab === 'claims') { S.claimQuery=''; S.claimPayFilter=''; S.claimMonthFilter=''; S.claimYearFilter=''; }
-      if (S.tab === 'inspect') S.inspectQuery='';
-      if (S.tab === 'claimsdone') { S.claimsDoneQuery=''; S.claimsDoneMonthFilter=''; S.claimsDoneYearFilter=''; }
+      if (S.tab === 'claims') { S.claimQuery=''; S.claimModelFilter=''; S.claimPayFilter=''; S.claimMonthFilter=''; S.claimYearFilter=''; }
+      if (S.tab === 'inspect') {S.inspectQuery='';S.inspectModelFilter='';}
+      if (S.tab === 'claimsdone') { S.claimsDoneQuery=''; S.claimsDoneModelFilter=''; S.claimsDoneMonthFilter=''; S.claimsDoneYearFilter=''; }
       render();
       document.getElementById('claim-tab-' + S.tab + '-' + scope).focus();
       break;
@@ -1541,7 +1554,7 @@ function onClick(e) {
         if (list.length >= 200) break;
         list.push(''); if (group === 'colors') S.settingsColors.push('#c3c8ce');
       } else if (act === 'setting-remove') {
-        if (group !== 'banks' && list.length <= 1) break;
+        if (['banks','claimTypes'].indexOf(group)<0 && list.length <= 1) break;
         list.splice(index, 1); if (group === 'colors') S.settingsColors.splice(index, 1);
       } else {
         var destination = index + (act === 'setting-up' ? -1 : 1);
@@ -1563,8 +1576,9 @@ function onClick(e) {
     case 'retry-boot': S.bootError = ''; S.ready = false; render(); bootstrap(); break;
 
     case 'clear-stock':      S.stockQuery=''; S.stockStatusFilter=''; S.stockLocationFilter=''; S.stockModelFilter=''; S.stockSubmodelFilter=''; S.stockColorFilter=''; S.stockYearFilter=''; render(); break;
-    case 'clear-claim':      S.claimQuery=''; S.claimPayFilter=''; S.claimMonthFilter=''; S.claimYearFilter=''; render(); break;
-    case 'clear-claimsdone': S.claimsDoneQuery=''; S.claimsDoneMonthFilter=''; S.claimsDoneYearFilter=''; render(); break;
+    case 'clear-inspect': S.inspectQuery='';S.inspectModelFilter='';render();break;
+    case 'clear-claim':      S.claimQuery=''; S.claimModelFilter=''; S.claimPayFilter=''; S.claimMonthFilter=''; S.claimYearFilter=''; render(); break;
+    case 'clear-claimsdone': S.claimsDoneQuery=''; S.claimsDoneModelFilter=''; S.claimsDoneMonthFilter=''; S.claimsDoneYearFilter=''; render(); break;
     case 'clear-transfer':   S.transferQuery=''; S.transferModelFilter=''; render(); break;
 
     case 'open-delete-car':
@@ -1723,7 +1737,7 @@ function doConfirm() {
     if (!selectedClaimCars().length) return toast('กรุณาเลือกรถที่ต้องการเพิ่มงานเคลม', true);
     call('addVehicleClaim', { carIds:f.claimCarIds.slice(), payload:{ detail:f.detail, amount:Number(f.amount) }, role:S.role }, function () {
       S.tab='claims'; S.claimScopes.claims='vehicle';
-      S.claimQuery=''; S.claimPayFilter=''; S.claimMonthFilter=''; S.claimYearFilter=''; closeModal();
+      S.claimQuery=''; S.claimModelFilter=''; S.claimPayFilter=''; S.claimMonthFilter=''; S.claimYearFilter=''; closeModal();
     });
     return;
   }
