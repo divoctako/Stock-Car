@@ -14,6 +14,9 @@
     "test": "node --test",
     "db:setup": "node --env-file-if-exists=.env.local scripts/database.mjs setup",
     "db:export": "node --env-file-if-exists=.env.local scripts/database.mjs export",
+    "db:export-views": "node --env-file-if-exists=.env.local scripts/export-views.mjs",
+    "db:migrate:check": "node --env-file-if-exists=.env.local scripts/migrate-relational.mjs dry-run",
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate-relational.mjs apply",
     "db:config": "node --env-file-if-exists=.env.local scripts/database.mjs config"
   },
   "dependencies": {

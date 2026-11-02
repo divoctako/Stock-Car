@@ -25,6 +25,28 @@ Set DATABASE_URL, APP_PIN, SESSION_SECRET and ROLE_PASSWORD_KEY in Vercel Produc
 
 Do not commit .env.local, database backups, Excel inventory or demo-data. Keep the Neon connection URL and encryption keys in environment variables.
 
-## Inventory import
+## Excel exports from Neon
+
+The relational tables are the source of truth: `cars` (one vehicle per row), `claims` (one claim per row, nullable car_id for other claims), `app_options`, `role_credentials`, `request_receipts`, `audit_log`, `login_attempts`, `app_meta`, and `app_values`. Money is numeric, dates are DATE, and identifiers are text to retain leading zeros. `app_values` stores scalar settings and import provenance as separate path/type/value rows, including empty arrays/objects; it contains no JSON column.
+
+Run `npm run db:export-views` to install live reporting views, or run `sql/export-views.sql` in Neon's SQL Editor.
+
+In Neon's SQL Editor run one of these queries and download the results as XLSX:
+
+```sql
+SELECT * FROM public.export_cars ORDER BY "รหัสรถ";
+SELECT * FROM public.export_claims ORDER BY "รหัสรถ", "รหัสเคลม";
+SELECT * FROM public.export_audit ORDER BY "เวลาไทย";
+```
+
+Run each query separately for a separate export. The views use Thai column headers, numeric amounts and date columns, and exclude authentication records. Cars and claims use separate views so cars with multiple claims do not duplicate vehicle prices in Excel totals.
+
+## Migration from app_document
+
+Deploy this version first: it supports the old storage until the atomic migration commits. Confirm the production deployment has succeeded before running `npm run db:migrate:check` and then `npm run db:migrate`. The check performs the entire migration and rolls back; apply verifies every document field, replaces export views, and drops app_document in one transaction. Any failure rolls back the migration. Do not deploy the old app after cutover. No original JSON snapshot is retained by the application.
+
+SQL writes and app writes share a revision lock to prevent stale app snapshots from overwriting direct edits. SQL edits generate audit rows attributed to the database user. Changes to claims reset inspection. Deleting a car deletes its claims and associated provenance; audit history remains. Use DELETE, not TRUNCATE. Edit `app_options.value` to rename a choice and cascade the label to vehicles/claims. In the app, replacing a removed choice at the same position with unchanged list length is treated as a rename; reordering existing choices preserves their labels. Removing a choice preserves historical text values.
+
+## Inventory import workflow
 
 The local scripts/import-stock-demo.py reads the original BYD workbook into demo-data/byd-stock-import.json. Then run `node --env-file-if-exists=.env.local scripts/import-byd.mjs` locally to import missing VINs. Existing VINs are skipped. Source workbook and generated inventory are intentionally excluded from GitHub.
