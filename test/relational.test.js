@@ -4,8 +4,14 @@ import {PGlite} from '@electric-sql/pglite';
 import {setup,readState,executeWrite} from '../lib/db.js';
 import {loadDocument} from '../lib/relational.js';
 import {migrateRelational} from '../lib/migrate-relational.js';
-import {initialState} from '../lib/domain.js';
+import {initialState,applyOptionRenames} from '../lib/domain.js';
 const adapter=pg=>({query:(...a)=>pg.query(...a),connect:async()=>({query:(...a)=>pg.query(...a),release(){}})});
+
+test('renaming a bank resets affected vehicle and other-claim inspection',()=>{
+ const state=initialState();state.cars=[{id:1,inspected:true,claims:[{bank:'Old'}]}];state.otherClaims=[{bank:'Old',inspected:true}];
+ applyOptionRenames(state,{banks:['Old']},{banks:['New']});
+ assert.equal(state.cars[0].claims[0].bank,'New');assert.equal(state.cars[0].inspected,false);assert.equal(state.otherClaims[0].inspected,false);
+});
 
 test('SQL edits round-trip, option renames cascade, claim edits reset inspection, deletes cascade and audit survives',async()=>{
  const pg=new PGlite(),db=adapter(pg);
