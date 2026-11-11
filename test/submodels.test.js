@@ -7,6 +7,33 @@ import {initialState,validateConfig,mutate} from '../lib/domain.js';
 import {setup,readState,executeWrite} from '../lib/db.js';
 const pairs={'Stock Dolphin':['435KM-STD','490KM-EXT'],'Stock Atto 3':['Premium','Extended Range']};
 
+test('nested settings keep children attached when parents are renamed, reordered or removed',async()=>{
+ const context=vm.createContext({document:{readyState:'loading',addEventListener(){},getElementById(){return null;}}});
+ const source=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
+ vm.runInContext(source.replace("if (document.readyState === 'loading')","globalThis.ui={S,viewSettings,onInputEvent,onClick,saveSettings,setRender(fn){render=fn;},setCall(fn){call=fn;}};\nif (document.readyState === 'loading')"),context);
+ const {S,viewSettings,onInputEvent,onClick,saveSettings,setRender,setCall}=context.ui;
+ S.config={...initialState().config,models:['Atto3','Atto2'],submodels:{Atto3:['Premium','Extended'],Atto2:['Premium']}};
+ const html=viewSettings();assert.ok(html.includes('setting-model-tree'));assert.ok(!html.includes('setting-submodel-model'));
+ assert.ok(html.indexOf('value="Atto3"')<html.indexOf('value="Extended"'));assert.ok(html.indexOf('value="Extended"')<html.indexOf('value="Atto2"'));
+ setRender(()=>{});
+ const click=(action,attrs={})=>onClick({target:{closest:()=>({getAttribute:key=>key==='data-act'?action:attrs[key]??null})}});
+ const input=(value,attrs)=>onInputEvent({target:{value,getAttribute:key=>attrs[key]??null}});
+ click('submodel-add',{'data-model-idx':'1'});
+ input('Dynamic',{'data-in':'setting-submodel','data-model-idx':'1','data-idx':'1'});
+ input('Atto3 New',{'data-in':'setting-value','data-group':'models','data-idx':'0'});
+ click('setting-down',{'data-group':'models','data-idx':'0'});
+ let sent;setCall((action,body)=>{sent={action,body};});saveSettings();
+ assert.deepEqual(Array.from(sent.body.payload.config.submodels['Atto3 New']),['Premium','Extended']);
+ assert.deepEqual(Array.from(sent.body.payload.config.submodels.Atto2),['Premium','Dynamic']);
+ click('submodel-up',{'data-model-idx':'0','data-idx':'1'});saveSettings();
+ assert.deepEqual(Array.from(sent.body.payload.config.submodels.Atto2),['Dynamic','Premium']);
+ click('submodel-remove',{'data-model-idx':'0','data-idx':'0'});saveSettings();
+ assert.deepEqual(Array.from(sent.body.payload.config.submodels.Atto2),['Premium']);
+ click('setting-remove',{'data-group':'models','data-idx':'0'});saveSettings();
+ assert.equal(sent.body.payload.config.submodels.Atto2,undefined);
+ assert.deepEqual(Array.from(sent.body.payload.config.submodels['Atto3 New']),['Premium','Extended']);
+});
+
 test('submodel configuration validates each parent independently and preserves older clients',()=>{
  const base=initialState().config;
  const config=validateConfig({...base,submodels:pairs},base);
