@@ -97,7 +97,14 @@ BEGIN
  IF TG_OP='INSERT' THEN RETURN NEW; END IF;
  IF NEW.option_group<>OLD.option_group THEN RAISE EXCEPTION 'Option group cannot be changed'; END IF;
  IF current_setting('stock.app_write',true) IS DISTINCT FROM '1' AND NEW.value IS DISTINCT FROM OLD.value THEN
-   IF NEW.option_group='models' THEN UPDATE public.cars SET model=NEW.value WHERE model=OLD.value;
+   IF NEW.option_group='models' THEN
+     IF EXISTS(SELECT 1 FROM public.app_values WHERE scope='config' AND owner='' AND path[1]='submodels' AND path[2]=NEW.value) AND
+        EXISTS(SELECT 1 FROM public.app_values WHERE scope='config' AND owner='' AND path[1]='submodels' AND path[2]=OLD.value) THEN
+       RAISE EXCEPTION 'The new model name already has submodels; merge its settings before renaming';
+     END IF;
+     UPDATE public.app_values SET path=ARRAY['submodels',NEW.value]||path[3:array_length(path,1)]
+       WHERE scope='config' AND owner='' AND path[1]='submodels' AND path[2]=OLD.value;
+     UPDATE public.cars SET model=NEW.value WHERE model=OLD.value;
    ELSIF NEW.option_group='colors' THEN UPDATE public.cars SET color=NEW.value WHERE color=OLD.value;
    ELSIF NEW.option_group='locations' THEN UPDATE public.cars SET location=NEW.value WHERE location=OLD.value;
    ELSIF NEW.option_group='banks' THEN UPDATE public.claims SET bank=NEW.value WHERE bank=OLD.value;

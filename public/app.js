@@ -78,7 +78,7 @@ var S = {
   otherClaims: [],      // รายการเคลมที่ไม่ผูกกับรถ (carId = 0 ในชีต Claims)
   config: { models:[], colors:[], colorHex:{}, locations:[], banks:[], settings:{} },
   configRevision: 0,
-  settingsDraft: null, settingsColors: [], settingsRevision: 0, settingsDirty: false,
+  settingsDraft: null, settingsColors: [], settingsRevision: 0, settingsDirty: false, settingsSubmodelModel:'',
   stockQuery:'', stockStatusFilter:'', stockLocationFilter:'', stockModelFilter:'',
   stockSubmodelFilter:'', stockColorFilter:'', stockYearFilter:'',
   dashboardFilters:{query:'',model:'',submodel:'',color:'',location:'',status:'',year:'',age:'',due:'',dueFrom:'',dueTo:''},
@@ -577,6 +577,7 @@ function beginSettings() {
   S.settingsDraft = JSON.parse(JSON.stringify(S.config));
   var draft = S.settingsDraft;
   draft.claimTypes = draft.claimTypes || [];
+  draft.submodels = draft.submodels || {};
   S.settingsColors = draft.colors.map(function (name) { return draft.colorHex[name] || '#c3c8ce'; });
   draft.statusLabels = Object.assign({ Available:'พร้อมขาย', Reserved:'จอง', Delivered:'ส่งมอบแล้ว', Transferred:'ตัดขายแล้ว' }, draft.statusLabels || {});
   draft.claimPayLabels = Object.assign({ some:'รับบางส่วนแล้ว', none:'ยังไม่ได้รับเลย' }, draft.claimPayLabels || {});
@@ -589,6 +590,22 @@ function markSettingsDirty() {
   if (badge) { badge.textContent = 'มีการเปลี่ยนแปลงที่ยังไม่บันทึก'; badge.className = 'pill c-amber'; }
   var save = document.getElementById('settings-save');
   if (save) save.disabled = false;
+}
+function viewSubmodelSettings(draft) {
+  if(!can().stock)return '';
+  var models=draft.models.filter(function(model){return String(model).trim();});
+  if(models.indexOf(S.settingsSubmodelModel)<0)S.settingsSubmodelModel=models[0]||'';
+  var model=S.settingsSubmodelModel,list=Object.prototype.hasOwnProperty.call(draft.submodels,model)?draft.submodels[model]:[];
+  var rows=list.map(function(value,index){
+    var attrs=' data-idx="'+index+'"';
+    return '<div class="setting-option"><span class="setting-index">'+(index+1)+'</span><input class="setting-value" data-in="setting-submodel" data-k="setting-submodel-'+index+'"'+attrs+' aria-label="รุ่นย่อยรายการที่ '+(index+1)+'" value="'+esc(value)+'" maxlength="240" placeholder="เช่น Extended Range"><div class="setting-row-actions">'+
+      '<button class="setting-icon" data-act="submodel-up"'+attrs+' aria-label="ย้ายรุ่นย่อยรายการที่ '+(index+1)+'ขึ้น"'+(!index?' disabled':'')+'>↑</button>'+
+      '<button class="setting-icon" data-act="submodel-down"'+attrs+' aria-label="ย้ายรุ่นย่อยรายการที่ '+(index+1)+'ลง"'+(index===list.length-1?' disabled':'')+'>↓</button>'+
+      '<button class="setting-icon setting-remove" data-act="submodel-remove"'+attrs+' aria-label="ลบรุ่นย่อยรายการที่ '+(index+1)+'">×</button></div></div>';
+  }).join('');
+  return '<section class="card setting-card"><div class="setting-card-head"><div><h2>รุ่นย่อย (Sub-model)</h2><p>เลือกรุ่นรถ แล้วเพิ่มรุ่นย่อยที่ใช้กับรุ่นนั้น</p></div><span class="pill c-gray">'+list.length+' รายการ</span></div><div class="setting-options">'+
+    fld('รุ่นรถสำหรับตั้งค่ารุ่นย่อย','<select data-in="setting-submodel-model" data-k="setting-submodel-model" aria-label="รุ่นรถสำหรับตั้งค่ารุ่นย่อย">'+optionList(models,model)+'</select>')+
+    (rows||'<div class="setting-empty">ยังไม่มีรุ่นย่อยของรุ่นนี้</div>')+'</div><div class="setting-card-foot"><button class="btn-sm soft" data-act="submodel-add"'+(!model||list.length>=200?' disabled':'')+'>+ เพิ่มรุ่นย่อย</button></div></section>';
 }
 function viewSettings() {
   if (!['admin','keeper','claim'].includes(S.role)) return '<div class="empty">ไม่มีสิทธิ์เข้าถึงการตั้งค่า</div>';
@@ -620,7 +637,7 @@ function viewSettings() {
   return '<div class="page-head settings-page-head"><div><h1 class="page">ตั้งค่า</h1><p class="sub">'+(S.role==='keeper'?'ตั้งค่าเกี่ยวกับรถ: รุ่น สี สถานที่ และชื่อสถานะรถ':S.role==='claim'?'ตั้งค่าบัญชีธนาคารและชื่อรายการเคลม':'จัดการตัวเลือก Dropdown ทั้งระบบจากที่เดียว')+'</p></div><span id="settings-state" class="pill ' + (S.settingsDirty ? 'c-amber' : 'c-green') + '">' + (S.settingsDirty ? 'มีการเปลี่ยนแปลงที่ยังไม่บันทึก' : 'ใช้ค่าที่บันทึกแล้ว') + '</span></div>' +
     '<div class="settings-toolbar"><p>ปรับชื่อ ลำดับ และตัวเลือก แล้วกดบันทึกเพื่อให้ทั้งทีมใช้งาน</p><div><button class="btn btn-outline" data-act="settings-reload">โหลดค่าล่าสุด</button><button id="settings-save" class="btn btn-primary" data-act="settings-save"' + (!S.settingsDirty ? ' disabled' : '') + '>บันทึกการตั้งค่า</button></div></div>' +
     (S.role==='admin'?'<section class="card card-pad" style="margin-bottom:20px"><h2 class="card-title">รหัสผ่านแต่ละตำแหน่ง</h2><p class="sub">Admin จัดการรหัสผ่านได้ ผู้ใช้ต้องเข้าสู่ระบบตามตำแหน่ง กดดูรหัสปัจจุบันได้เฉพาะ Admin</p><div class="role-password-list">'+Object.keys(ROLES).map(function(role){return '<div><strong>'+esc(ROLES[role].label)+'</strong><span class="sub">'+(S.rolePasswordStatus[role]?'ตั้งรหัสผ่านแล้ว':role==='admin'?'ใช้รหัส Admin เริ่มต้น':'ยังไม่เปิดใช้งาน')+'</span><button class="btn btn-outline" data-act="show-role-password" data-v="'+role+'">ดูรหัสปัจจุบัน '+esc(ROLES[role].label)+'</button><button class="btn btn-outline" data-act="open-role-password" data-v="'+role+'">ตั้งรหัสผ่าน '+esc(ROLES[role].label)+'</button></div>';}).join('')+'</div></section>':'') +
-    '<div class="setting-grid">' + groups + '</div>' +
+    '<div class="setting-grid">' + groups + viewSubmodelSettings(draft) + '</div>' +
     (S.role!=='claim'?'<details class="card setting-advanced"><summary>ชื่อสถานะ'+(S.role==='admin'?'และเดือน':'รถ')+'ที่แสดงใน Dropdown <span>ปรับข้อความแสดงผล</span></summary><div class="setting-advanced-body"><p class="sub">เปลี่ยนได้เฉพาะชื่อที่แสดง สถานะยังทำงานตามขั้นตอนเดิม</p><div class="setting-label-grid">' + fixed + '</div>'+(S.role==='admin'?'<h2>ชื่อเดือน</h2><div class="setting-month-grid">' + months + '</div>':'')+'</div></details>':'') +
     '<div class="settings-history-note">การลบหรือเปลี่ยนชื่อตัวเลือกมีผลกับรายการที่เลือกใหม่ ข้อมูลรถและเคลมที่บันทึกไว้แล้วจะยังคงค่าเดิม</div>';
 }
@@ -632,7 +649,7 @@ function saveSettings() {
   if (!S.settingsDraft || !S.settingsDirty || !['admin','keeper','claim'].includes(S.role)) return;
   var config = JSON.parse(JSON.stringify(S.settingsDraft));
   config.colorHex = Object.fromEntries(config.colors.map(function (name, i) { return [name, S.settingsColors[i]]; }));
-  if(S.role==='keeper')config={models:config.models,colors:config.colors,colorHex:config.colorHex,locations:config.locations,statusLabels:config.statusLabels};
+  if(S.role==='keeper')config={models:config.models,submodels:config.submodels,colors:config.colors,colorHex:config.colorHex,locations:config.locations,statusLabels:config.statusLabels};
   if(S.role==='claim')config={banks:config.banks,claimTypes:config.claimTypes};
   call('saveConfig', { role:S.role, payload:{ config:config, expectedRevision:S.settingsRevision } }, beginSettings);
 }
@@ -1109,6 +1126,10 @@ function optionList(list, val) {
     return '<option value="' + esc(o) + '"' + (String(val) === String(o) ? ' selected' : '') + '>' + esc(o) + '</option>';
   }).join('');
 }
+function submodelOptions(model,selected) {
+  var list=S.config.submodels && Object.prototype.hasOwnProperty.call(S.config.submodels,model)?S.config.submodels[model]:[];
+  return '<option value="">'+(!model?'— เลือกรุ่นรถก่อน —':list.length?'— เลือกรุ่นย่อย —':'— ตั้งค่ารุ่นย่อยใน Setting —')+'</option>'+optionList(list,selected);
+}
 // ตัวเลือกบัญชีธนาคาร — รายการมาจากชีต "บัญชีธนาคาร" ผ่าน config.banks
 function bankOptions(selected) {
   var list = S.config.banks || [];
@@ -1219,7 +1240,7 @@ function viewModal() {
   } else if (m.type === 'add' || m.type === 'edit') {
     body = '<div class="form-grid">' +
       fld('รุ่นรถ', '<select data-k="form-model" data-in="form-model">' + (m.floor?'<option value="">ยังไม่ระบุ</option>':'') + optionList(S.config.models, f.model) + '</select>') +
-      fld('รุ่นย่อย (Sub-model)', inp('submodel','text',f.submodel,'เช่น Extended Range'), !m.floor) +
+      fld('รุ่นย่อย (Sub-model)', '<select data-k="form-submodel" data-in="form-submodel"'+(!f.model?' disabled':'')+'>'+submodelOptions(f.model,f.submodel)+'</select>', !m.floor) +
       fld('สี', '<select data-k="form-color" data-in="form-color">' + (m.floor?'<option value="">ยังไม่ระบุ</option>':'') + optionList(S.config.colors, f.color) + '</select>') +
       fld('Location', '<select data-k="form-location" data-in="form-location">' + (m.floor?'<option value="">ยังไม่ระบุ</option>':'') + optionList(S.config.locations, f.location) + '</select>') +
       fld('VIN no.', '<input class="mono" data-k="form-vin" data-in="form-vin" value="' + esc(f.vin) + '" placeholder="LGXCE4CB...">', !m.floor) +
@@ -1355,6 +1376,12 @@ function onInputEvent(e) {
   var k = el && el.getAttribute && el.getAttribute('data-in');
   if (!k) return;
   var v = el.value;
+  if(k==='setting-submodel-model' && S.settingsDraft && can().stock) {S.settingsSubmodelModel=v;render();return;}
+  if(k==='setting-submodel' && S.settingsDraft && can().stock) {
+    var submodelList=S.settingsDraft.submodels[S.settingsSubmodelModel],submodelIndex=Number(el.getAttribute('data-idx'));
+    if(!Array.isArray(submodelList) || !Number.isInteger(submodelIndex) || submodelIndex<0 || submodelIndex>=submodelList.length)return;
+    submodelList[submodelIndex]=v;markSettingsDirty();return;
+  }
   if(k==='login-role'){S.loginRole=v;return;}
   if (k === 'import-cars-file') { if(e.type === 'change') loadCarCSV(el.files && el.files[0]); return; }
   var dashboardKey = k.indexOf('filter-dash-') === 0 ? k.slice(12) : (k.indexOf('dash-') === 0 ? k.slice(5) : '');
@@ -1395,6 +1422,9 @@ function onInputEvent(e) {
     return;
   }
   if (k.indexOf('form-') === 0) {
+    if(k==='form-model' && S.modal && ['add','edit'].indexOf(S.modal.type)>=0) {
+      if(S.form.model!==v){S.form.model=v;S.form.submodel='';render();}return;
+    }
     S.form[k.slice(5)] = v;
     if (S.modal && S.modal.type === 'add-vehicle-claim' && k === 'form-amount') updateVehicleClaimSummary();
     return;
@@ -1541,6 +1571,23 @@ function onClick(e) {
       break;
     }
     case 'settings-save': saveSettings(); break;
+    case 'submodel-add':
+    case 'submodel-up':
+    case 'submodel-down':
+    case 'submodel-remove': {
+      if(!can().stock || !S.settingsDraft || !S.settingsSubmodelModel)break;
+      var submodelMap=S.settingsDraft.submodels,submodelKey=S.settingsSubmodelModel;
+      if(S.settingsDraft.models.indexOf(submodelKey)<0)break;
+      if(!Object.prototype.hasOwnProperty.call(submodelMap,submodelKey))Object.defineProperty(submodelMap,submodelKey,{value:[],writable:true,enumerable:true,configurable:true});
+      var submodelRows=submodelMap[submodelKey],submodelRowIndex=Number(el.getAttribute('data-idx'));
+      if(act==='submodel-add'){if(submodelRows.length>=200)break;submodelRows.push('');}
+      else {
+        if(!Number.isInteger(submodelRowIndex)||submodelRowIndex<0||submodelRowIndex>=submodelRows.length)break;
+        if(act==='submodel-remove')submodelRows.splice(submodelRowIndex,1);
+        else {var submodelDestination=submodelRowIndex+(act==='submodel-up'?-1:1);if(submodelDestination<0||submodelDestination>=submodelRows.length)break;var submodelItem=submodelRows[submodelRowIndex];submodelRows[submodelRowIndex]=submodelRows[submodelDestination];submodelRows[submodelDestination]=submodelItem;}
+      }
+      markSettingsDirty();render();break;
+    }
     case 'settings-reload': call('refresh', {}, beginSettings); break;
     case 'setting-add':
     case 'setting-remove':
