@@ -31,8 +31,8 @@ CREATE TABLE IF NOT EXISTS public.cars (
   "transfer_to" text,
   "claims_not_provided" boolean,
  present_fields text[] NOT NULL DEFAULT '{}', null_fields text[] NOT NULL DEFAULT '{}',
- CHECK(status IN ('Available','Reserved','Delivered','Transferred','FloorPlan')),
- CHECK(stock_status IS NULL OR stock_status IN ('Available','Reserved')),
+ CONSTRAINT cars_status_valid CHECK(status IS NOT NULL AND btrim(status)<>'' AND length(status)<=80),
+ CONSTRAINT cars_stock_status_valid CHECK(stock_status IS NULL OR (btrim(stock_status)<>'' AND length(stock_status)<=80 AND stock_status NOT IN ('Delivered','Transferred','FloorPlan'))),
  CHECK(buy_price >= 0 AND sell_price >= 0 AND amount_financed >= 0),
  CHECK(manufacture_year IS NULL OR manufacture_year='' OR manufacture_year ~ '^[0-9]{4}$')
 );

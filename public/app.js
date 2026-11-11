@@ -106,7 +106,11 @@ function today() {
   return d.getFullYear() + '-' + (m<10?'0':'') + m + '-' + (dd<10?'0':'') + dd;
 }
 function colorHex(name) { return S.config.colorHex[name] || '#c3c8ce'; }
-function statusLabel(key) { return (S.config.statusLabels || {})[key] || (STATUS_META[key] || ['—'])[0]; }
+function statusLabel(key) { return (S.config.statusLabels || {})[key] || (STATUS_META[key] || [key || '—'])[0]; }
+function isStockStatus(status) {return typeof status==='string' && !!status.trim() && ['Delivered','Transferred','FloorPlan'].indexOf(status)<0;}
+function stockStatusCodes() {return Array.from(new Set(['Available','Reserved'].concat(S.config.stockStatuses||[])));}
+function stockStatusChoices(history) {var values=stockStatusCodes();if(history)values=Array.from(new Set(values.concat(S.cars.filter(function(car){return isStockStatus(car.status);}).map(function(car){return car.status;}))));return values.map(function(value){return {value:value,label:statusLabel(value)};});}
+function stockStatusOptions(selected) {var values=stockStatusCodes();if(selected&&isStockStatus(selected)&&values.indexOf(selected)<0)values.push(selected);return values.map(function(value){return '<option value="'+esc(value)+'"'+(value===selected?' selected':'')+'>'+esc(statusLabel(value))+'</option>';}).join('');}
 function statusMeta(key) { return [statusLabel(key), (STATUS_META[key] || ['', 'c-gray'])[1]]; }
 function payLabel(key) { return (S.config.claimPayLabels || {})[key] || (key === 'some' ? 'รับบางส่วนแล้ว' : 'ยังไม่ได้รับเลย'); }
 // จำนวนวันนับจากวันที่รับรถเข้าถึงวันนี้ (null = ไม่มีวันที่รับ)
@@ -260,7 +264,7 @@ function dashboardMatches(car) {
   return true;
 }
 function dashboardCars() {
-  return S.cars.filter(function (car) { return (car.status === 'Available' || car.status === 'Reserved') && dashboardMatches(car); });
+  return S.cars.filter(function (car) { return isStockStatus(car.status) && dashboardMatches(car); });
 }
 function dashboardDrillCars() {
   var group = S.dashboardDrill;
@@ -279,7 +283,7 @@ function derive() {
   var q = function (s) { return (s || '').trim().toLowerCase(); };
   var match = function (c, s) { return [c.vin, c.model, c.submodel, c.batteryNumber, c.frontMotorNumber, c.manufactureYear].join(' ').toLowerCase().indexOf(s) >= 0; };
 
-  var stockAll = S.cars.filter(function (c) { return c.status === 'Available' || c.status === 'Reserved'; });
+  var stockAll = S.cars.filter(function (c) { return isStockStatus(c.status); });
   var dashboardStock = dashboardCars();
   var sq = q(S.stockQuery);
   var stockCars = stockAll.filter(function (c) {
@@ -569,6 +573,7 @@ var SETTING_GROUPS = [
   { key:'models', title:'รุ่นรถ', description:'ใช้ในแบบฟอร์มรถและตัวกรองรุ่น', placeholder:'เช่น Stock Atto 3' },
   { key:'colors', title:'สีรถ', description:'ชื่อสีและสีที่แสดงบนการ์ดรถ', placeholder:'เช่น ขาวมุก' },
   { key:'locations', title:'สถานที่ / Location', description:'โชว์รูม สาขา หรือลานจอดรถ', placeholder:'เช่น โชว์รูมสำนักงานใหญ่' },
+  { key:'stockStatuses', title:'สถานะรถในสต๊อก', description:'เพิ่มสถานะ เช่น test drive, mobile หรือ coutersy · สถานะเหล่านี้ยังนับเป็นรถในสต๊อก', placeholder:'เช่น test drive' },
   { key:'claimTypes', title:'รายการเคลม', description:'ชื่อรายการที่เลือกได้ในแบบฟอร์มเคลม และยังพิมพ์ชื่อเองได้', placeholder:'เช่น เงินสนับสนุนการขาย' },
   { key:'banks', title:'บัญชีธนาคาร', description:'บัญชีที่เลือกเมื่อรับเงินเคลม', placeholder:'ธนาคาร · เลขบัญชี · ชื่อบัญชี' }
 ];
@@ -577,6 +582,7 @@ function beginSettings() {
   S.settingsDraft = JSON.parse(JSON.stringify(S.config));
   var draft = S.settingsDraft;
   draft.claimTypes = draft.claimTypes || [];
+  draft.stockStatuses = stockStatusCodes();
   draft.submodels = draft.submodels || {};
   S.settingsSubmodelLists=draft.models.map(function(model){return Object.prototype.hasOwnProperty.call(draft.submodels,model)?draft.submodels[model].slice():[];});
   S.settingsColors = draft.colors.map(function (name) { return draft.colorHex[name] || '#c3c8ce'; });
@@ -611,20 +617,22 @@ function viewSettings() {
   var groups = SETTING_GROUPS.filter(function(group){return canSettingGroup(group.key);}).map(function (group) {
     var list = draft[group.key];
     var rows = list.map(function (value, index) {
+      var fixedStatus=group.key==='stockStatuses' && index<2;
+      var shownValue=fixedStatus?(draft.statusLabels[value]||(STATUS_META[value]||[value])[0]):value;
       var attrs = ' data-group="' + group.key + '" data-idx="' + index + '"';
       var row = '<div class="setting-option"><span class="setting-index">' + (index + 1) + '</span>' +
         (group.key === 'colors' ? '<input class="setting-color" type="color" aria-label="ค่าสีรายการที่ ' + (index + 1) + '" data-in="setting-color" data-k="setting-color-' + index + '"' + attrs + ' value="' + esc(S.settingsColors[index]) + '">' : '') +
-        '<input class="setting-value" aria-label="' + group.title + ' รายการที่ ' + (index + 1) + '" data-in="setting-value" data-k="setting-' + group.key + '-' + index + '"' + attrs + ' value="' + esc(value) + '" maxlength="240" placeholder="' + group.placeholder + '">' +
-        '<div class="setting-row-actions"><button class="setting-icon" data-act="setting-up"' + attrs + ' aria-label="ย้าย' + group.title + 'รายการที่ ' + (index + 1) + 'ขึ้น"' + (!index ? ' disabled' : '') + '>↑</button>' +
-        '<button class="setting-icon" data-act="setting-down"' + attrs + ' aria-label="ย้าย' + group.title + 'รายการที่ ' + (index + 1) + 'ลง"' + (index === list.length - 1 ? ' disabled' : '') + '>↓</button>' +
-        '<button class="setting-icon setting-remove" data-act="setting-remove"' + attrs + ' aria-label="ลบ' + group.title + 'รายการที่ ' + (index + 1) + '"' + (['banks','claimTypes'].indexOf(group.key)<0 && list.length === 1 ? ' disabled' : '') + '>×</button></div></div>';
+        '<input class="setting-value" aria-label="' + group.title + ' รายการที่ ' + (index + 1) + '" data-in="' + (fixedStatus?'setting-stock-label':'setting-value') + '" data-k="setting-' + group.key + '-' + index + '"' + attrs + ' value="' + esc(shownValue) + '" maxlength="'+(group.key==='stockStatuses'?80:240)+'" placeholder="' + group.placeholder + '">' +
+        '<div class="setting-row-actions"><button class="setting-icon" data-act="setting-up"' + attrs + ' aria-label="ย้าย' + group.title + 'รายการที่ ' + (index + 1) + 'ขึ้น"' + (!index || (group.key==='stockStatuses' && index<=2) ? ' disabled' : '') + '>↑</button>' +
+        '<button class="setting-icon" data-act="setting-down"' + attrs + ' aria-label="ย้าย' + group.title + 'รายการที่ ' + (index + 1) + 'ลง"' + (index === list.length - 1 || fixedStatus ? ' disabled' : '') + '>↓</button>' +
+        '<button class="setting-icon setting-remove" data-act="setting-remove"' + attrs + ' aria-label="ลบ' + group.title + 'รายการที่ ' + (index + 1) + '"' + (fixedStatus || (['banks','claimTypes'].indexOf(group.key)<0 && list.length === 1) ? ' disabled' : '') + '>×</button></div></div>';
       return group.key==='models'?'<div class="setting-model-tree" data-model-idx="'+index+'">'+row+viewSubmodelSettings(index)+'</div>':row;
     }).join('');
     return '<section class="card setting-card'+(group.key==='models'?' setting-model-card':'')+'"><div class="setting-card-head"><div><h2>' + group.title + '</h2><p>' + group.description + '</p></div><span class="pill c-gray">' + list.length + ' รายการ</span></div>' +
       '<div class="setting-options">' + (rows || '<div class="setting-empty">ยังไม่มีรายการ กดเพิ่มตัวเลือกได้เลย</div>') + '</div>' +
       '<div class="setting-card-foot"><button class="btn-sm soft" data-act="setting-add" data-group="' + group.key + '"' + (list.length >= 200 ? ' disabled' : '') + '>+ เพิ่ม' + group.title + '</button></div></section>';
   }).join('');
-  var fixed = (S.role==='claim'?[]:Object.keys(draft.statusLabels)).map(function (key) {
+  var fixed = (S.role==='claim'?[]:Object.keys(draft.statusLabels).filter(function(key){return ['Available','Reserved'].indexOf(key)<0;})).map(function (key) {
     return '<label class="fld"><span>สถานะรถ · ' + esc(key) + '</span><input data-in="setting-status" data-k="setting-status-' + key + '" data-key="' + key + '" value="' + esc(draft.statusLabels[key]) + '" maxlength="80"></label>';
   }).join('') + (S.role==='admin'?Object.keys(draft.claimPayLabels):[]).map(function (key) {
     return '<label class="fld"><span>ตัวกรองเคลม · ' + (key === 'some' ? 'รับบางส่วน' : 'ยังไม่รับ') + '</span><input data-in="setting-pay" data-k="setting-pay-' + key + '" data-key="' + key + '" value="' + esc(draft.claimPayLabels[key]) + '" maxlength="80"></label>';
@@ -641,7 +649,7 @@ function viewSettings() {
 }
 
 function canSettingGroup(group){
-  return S.role==='admin' || (S.role==='keeper' && ['models','colors','locations'].indexOf(group)>=0) || (S.role==='claim' && ['banks','claimTypes'].indexOf(group)>=0);
+  return S.role==='admin' || (S.role==='keeper' && ['models','colors','locations','stockStatuses'].indexOf(group)>=0) || (S.role==='claim' && ['banks','claimTypes'].indexOf(group)>=0);
 }
 function saveSettings() {
   if (!S.settingsDraft || !S.settingsDirty || !['admin','keeper','claim'].includes(S.role)) return;
@@ -650,7 +658,7 @@ function saveSettings() {
   config.submodels=Object.fromEntries(inactiveSubmodels);
   config.models.forEach(function(model,index){var key=String(model).trim();if(key)Object.defineProperty(config.submodels,key,{value:(S.settingsSubmodelLists[index]||[]).slice(),writable:true,enumerable:true,configurable:true});});
   config.colorHex = Object.fromEntries(config.colors.map(function (name, i) { return [name, S.settingsColors[i]]; }));
-  if(S.role==='keeper')config={models:config.models,submodels:config.submodels,colors:config.colors,colorHex:config.colorHex,locations:config.locations,statusLabels:config.statusLabels};
+  if(S.role==='keeper')config={models:config.models,submodels:config.submodels,colors:config.colors,colorHex:config.colorHex,locations:config.locations,stockStatuses:config.stockStatuses,statusLabels:config.statusLabels};
   if(S.role==='claim')config={banks:config.banks,claimTypes:config.claimTypes};
   call('saveConfig', { role:S.role, payload:{ config:config, expectedRevision:S.settingsRevision } }, beginSettings);
 }
@@ -687,7 +695,7 @@ function viewDashboardFilters(d) {
     field('รุ่นย่อย',select('submodel','ทุกรุ่นย่อย',submodels)) +
     field('สีรถ',select('color','ทุกสี',values('color'))) +
     field('สถานที่',select('location','ทุกสถานที่',values('location'))) +
-    field('สถานะ',select('status','พร้อมขาย + จอง',[{value:'Available',label:statusLabel('Available')},{value:'Reserved',label:statusLabel('Reserved')}])) +
+    field('สถานะ',select('status','รถในสต๊อกทุกสถานะ',stockStatusChoices(true))) +
     field('ปีผลิต',select('year','ทุกปีผลิต',values('manufactureYear').reverse())) +
     field('อายุรถ',select('age','ทุกช่วงอายุ',AGE_BUCKETS.map(function (b) { return {value:b.key,label:b.label}; }))) +
     field('วันครบกำหนดจ่าย',select('due','ทุกกำหนดจ่าย',[{value:'overdue',label:'เกินกำหนด'},{value:'today',label:'ครบกำหนดวันนี้'},{value:'week',label:'ภายใน 7 วัน'},{value:'missing',label:'ยังไม่ระบุวันจ่าย'},{value:'range',label:'เลือกช่วงวันที่'}])) +
@@ -698,7 +706,7 @@ function viewDashboardFilters(d) {
 function viewDashboardStock(d) {
   var stock = d.dashboardCars;
   var stats = [
-    { label:'รถในสต๊อก',        value:stock.length,    unit:'คัน', color:'var(--text)', sub:S.dashboardFilters.status ? statusLabel(S.dashboardFilters.status) : 'พร้อมขาย + จอง' },
+    { label:'รถในสต๊อก',        value:stock.length,    unit:'คัน', color:'var(--text)', sub:S.dashboardFilters.status ? statusLabel(S.dashboardFilters.status) : 'รถในสต๊อกทุกสถานะ' },
     S.role==='sales' ? {label:'รถจอง',value:stock.filter(function(car){return car.status==='Reserved';}).length,unit:'คัน',color:'var(--amber)',sub:'รถจองตามตัวกรอง'} : { label:'ตัดขายให้ที่อื่น',  value:d.dashboardTransfers.length, unit:'คัน', color:'var(--muted)', sub:'โอนออกสะสมตามตัวกรอง' },
     { label:'มูลค่าสต๊อก', value:stock.length && d.stockPriceMissing === stock.length ? '—' : fmt(d.stockValue), unit:stock.length && d.stockPriceMissing === stock.length ? '' : '฿', color:'var(--green)', sub:d.stockPriceMissing ? 'ไม่ระบุราคาทุน ' + d.stockPriceMissing + ' คัน' : 'ราคาซื้อรวม' },
     { label:'อายุสต๊อกเฉลี่ย',   value:d.ageAvg,             unit:'วัน', color:(d.ageOver90 ? 'var(--amber)' : 'var(--text)'),
@@ -774,7 +782,7 @@ function viewDashboardStock(d) {
 function stockColorGroups(cars) {
   var groups = new Map(), usedColors = new Set();
   cars.forEach(function (car) {
-    if (car.status !== 'Available' && car.status !== 'Reserved') return;
+    if (!isStockStatus(car.status)) return;
     var model = car.model || 'ไม่ระบุรุ่น', submodel = car.submodel || 'ไม่ระบุรุ่นย่อย', color = car.color || 'ไม่ระบุสี';
     var key = JSON.stringify([model,submodel]);
     if (!groups.has(key)) groups.set(key,{model:model,submodel:submodel,total:0,colors:new Map()});
@@ -797,7 +805,7 @@ function swatchTextColor(hex) {
 }
 function viewStockColorChart(cars) {
   var chart = stockColorGroups(cars);
-  var head = '<div class="stock-color-head"><div><h2 class="card-title">สต๊อกแยกตามรุ่น รุ่นย่อย และสี</h2><p class="sub">รวมรถพร้อมขายและรถจอง · แท่งแต่ละสีแสดงจำนวนรถสีนั้น</p></div><span class="stock-color-total">รวม ' + fmt(chart.total) + ' คัน</span></div>';
+  var head = '<div class="stock-color-head"><div><h2 class="card-title">สต๊อกแยกตามรุ่น รุ่นย่อย และสี</h2><p class="sub">รวมรถในสต๊อกทุกสถานะ · แท่งแต่ละสีแสดงจำนวนรถสีนั้น</p></div><span class="stock-color-total">รวม ' + fmt(chart.total) + ' คัน</span></div>';
   if (!chart.rows.length) return '<section class="card card-pad-lg stock-color-card">' + head + '<div class="empty">ยังไม่มีรถพร้อมขายหรือรถจองในสต๊อก</div></section>';
   var legend = '<div class="stock-color-legend" aria-label="สีรถ">' + chart.colors.map(function (color) {
     return '<span><i class="stock-color-dot" style="background:' + esc(colorHex(color)) + '"></i>' + esc(color) + '</span>';
@@ -912,7 +920,7 @@ function viewStock(d) {
     stockFilter('รุ่นย่อย',selectBox('stockSubmodel', S.stockSubmodelFilter, 'ทุกรุ่นย่อย', d.stockSubmodels)) +
     stockFilter('สีรถ',selectBox('stockColor', S.stockColorFilter, 'ทุกสี', S.config.colors)) +
     stockFilter('สถานที่',selectBox('stockLocation', S.stockLocationFilter, 'ทุกสถานที่', S.config.locations)) +
-    stockFilter('สถานะ',selectBox('stockStatus', S.stockStatusFilter, 'ทุกสถานะ', [{value:'Available',label:statusLabel('Available')},{value:'Reserved',label:statusLabel('Reserved')}])) +
+    stockFilter('สถานะ',selectBox('stockStatus', S.stockStatusFilter, 'ทุกสถานะ', stockStatusChoices(true))) +
     stockFilter('ปีผลิต',selectBox('stockYear', S.stockYearFilter, 'ทุกปีผลิต', d.stockYears)) +
     '</div><div class="stock-filter-summary"><span>แสดง <strong>' + d.stockCars.length + '</strong> จาก ' + d.stockAll.length + ' คัน</span>' + clearBtn('clear-stock',d.stockFiltered) + '</div></div>';
 
@@ -1197,7 +1205,7 @@ function viewModal() {
     var preview=f.preview;
     body='<div class="csv-import-tools"><a class="btn btn-outline" href="/stock-import-template.csv" download>ดาวน์โหลดแบบฟอร์ม CSV</a><label class="fld">เลือกไฟล์ CSV<input type="file" accept=".csv,text/csv" data-in="import-cars-file" aria-label="เลือกไฟล์ CSV"' + (f.loading ? ' disabled' : '') + '></label></div>' +
       '<p class="sub">สูงสุด 500 คัน / 200 KB · บันทึกเป็น CSV UTF-8 · วันที่ใช้ YYYY-MM-DD (ค.ศ.)</p>' +
-      '<p class="sub">'+(f.target==='floor'?'นำเข้า Floor Plan: เว้นข้อมูลที่ยังไม่มีได้ทุกช่อง ใช้หัวคอลัมน์ตามแบบฟอร์ม':'ช่องบังคับ: vin, model, submodel, color, location, receiveDate')+' · รุ่น สี และสถานที่ที่กรอกต้องตรงกับหน้าตั้งค่า · status ใช้ Available หรือ Reserved (ว่าง = พร้อมขาย)</p>' +
+      '<p class="sub">'+(f.target==='floor'?'นำเข้า Floor Plan: เว้นข้อมูลที่ยังไม่มีได้ทุกช่อง ใช้หัวคอลัมน์ตามแบบฟอร์ม':'ช่องบังคับ: vin, model, submodel, color, location, receiveDate')+' · รุ่น สี และสถานที่ที่กรอกต้องตรงกับหน้าตั้งค่า · status ใช้ตัวเลือกใน Setting (ว่าง = พร้อมขาย)</p>' +
       '<p class="sub">buyPrice = ราคาซื้อ (เว้นว่างได้), paymentDueDate = วันครบจ่าย, batteryNumber = รหัสแบตเตอรี่, frontMotorNumber = เลขมอเตอร์/เลขเครื่อง, manufactureYear = ปีผลิต · ตั้งคอลัมน์รหัสเป็นข้อความใน Excel เพื่อเก็บเลข 0 ด้านหน้า</p>' +
       '<div class="note">เพิ่มเฉพาะรถใหม่ ไม่เขียนทับ VIN เดิม หากมีข้อผิดพลาดจะยังไม่นำเข้าทั้งไฟล์</div>' +
       (f.fileName ? '<p class="sub">ไฟล์: '+esc(f.fileName)+'</p>' : '') +
@@ -1217,7 +1225,7 @@ function viewModal() {
     else {
       var sm = statusMeta(car.status), age = daysSince(car.receiveDate);
       var fields = [['VIN',car.vin],['รุ่นรถ',car.model],['รุ่นย่อย',car.submodel],['สี',car.color],['สถานที่',car.location],['ปีผลิต',car.manufactureYear],['วันที่รับเข้า',car.receiveDate],['อายุสต๊อก',age === null ? '' : age + ' วัน'],['วันครบกำหนดจ่าย',car.paymentDueDate],['ราคาซื้อ',car.buyPrice == null || car.buyPrice === '' ? '' : fmt(car.buyPrice) + ' ฿'],['Battery number/code',car.batteryNumber],['เลขมอเตอร์/เลขเครื่อง',car.frontMotorNumber],['เลขเครื่องยนต์',car.engineNumber],['เลขมอเตอร์หลัง',car.rearMotorNumber]];
-      var manageActions = can().stock && (car.status === 'Available' || car.status === 'Reserved') ? '<div class="dashboard-manage-actions"><button class="btn btn-primary" data-act="open-edit" data-id="' + car.id + '">แก้ไขข้อมูลรถ</button><button class="btn btn-outline" data-act="open-transfer" data-id="' + car.id + '">ตัดขายให้ที่อื่น</button><button class="btn btn-primary" data-act="open-deliver" data-id="' + car.id + '">ส่งมอบลูกค้า</button></div>' : '';
+      var manageActions = can().stock && isStockStatus(car.status) ? '<div class="dashboard-manage-actions"><button class="btn btn-primary" data-act="open-edit" data-id="' + car.id + '">แก้ไขข้อมูลรถ</button><button class="btn btn-outline" data-act="open-transfer" data-id="' + car.id + '">ตัดขายให้ที่อื่น</button><button class="btn btn-primary" data-act="open-deliver" data-id="' + car.id + '">ส่งมอบลูกค้า</button></div>' : '';
       body = '<div class="car-line"><strong>' + esc(car.model + ' · ' + car.submodel) + '</strong> <span class="pill ' + sm[1] + '">' + esc(sm[0]) + '</span></div>' + manageActions + '<dl class="dashboard-car-details">' + fields.map(function (field) { return '<div><dt>' + esc(field[0]) + '</dt><dd>' + esc(field[1] || 'ไม่ระบุ') + '</dd></div>'; }).join('') + '</dl>';
     }
   } else if (m.type === 'select-claim-car') {
@@ -1250,8 +1258,7 @@ function viewModal() {
       fld('ปีผลิต (ค.ศ. / พ.ศ.)', inp('manufactureYear','text',f.manufactureYear,'เช่น 2026 หรือ 2569','','inputmode="numeric" maxlength="4" pattern="[0-9]{4}"')) +
       fld('ราคาซื้อ (บาท)', inp('buyPrice','number',f.buyPrice,'0')) +
       fld('สถานะ', '<select data-k="form-status" data-in="form-status">' +
-        '<option value="Available"' + (f.status === 'Available' ? ' selected' : '') + '>' + esc(statusLabel('Available')) + '</option>' +
-        '<option value="Reserved"'  + (f.status === 'Reserved'  ? ' selected' : '') + '>' + esc(statusLabel('Reserved')) + '</option></select>') +
+        stockStatusOptions(f.status) + '</select>') +
       fld('วันที่รับ', inp('receiveDate','date',f.receiveDate,'')) +
       fld(m.floor?'วันครบจ่ายเงิน (ต้องกรอกก่อนเข้า Stock)':'วันครบจ่ายเงิน (ไม่บังคับ)', inp('paymentDueDate','date',f.paymentDueDate,'')) +
       '</div>';
@@ -1404,7 +1411,8 @@ function onInputEvent(e) {
   if (k.indexOf('setting-') === 0 && S.settingsDraft && ['admin','keeper','claim'].includes(S.role)) {
     var group = el.getAttribute('data-group');
     var index = Number(el.getAttribute('data-idx'));
-    if (k === 'setting-value' && canSettingGroup(group) && S.settingsDraft[group]) S.settingsDraft[group][index] = v;
+    if(k==='setting-stock-label' && canSettingGroup('stockStatuses') && index>=0 && index<2){S.settingsDraft.statusLabels[S.settingsDraft.stockStatuses[index]]=v;}
+    else if (k === 'setting-value' && canSettingGroup(group) && S.settingsDraft[group]) S.settingsDraft[group][index] = v;
     else if (k === 'setting-color' && canSettingGroup('colors')) S.settingsColors[index] = v;
     else if (k === 'setting-status' && ['admin','keeper'].includes(S.role)) S.settingsDraft.statusLabels[el.getAttribute('data-key')] = v;
     else if (k === 'setting-pay' && S.role==='admin') S.settingsDraft.claimPayLabels[el.getAttribute('data-key')] = v;
@@ -1600,6 +1608,7 @@ function onClick(e) {
       var group = el.getAttribute('data-group');
       if (!canSettingGroup(group) || !SETTING_GROUPS.some(function (g) { return g.key === group; })) break;
       var list = S.settingsDraft[group], index = Number(el.getAttribute('data-idx'));
+      if(group==='stockStatuses' && act!=='setting-add' && index<2)break;
       if (act === 'setting-add') {
         if (list.length >= 200) break;
         list.push(''); if(group==='models')S.settingsSubmodelLists.push([]); if (group === 'colors') S.settingsColors.push('#c3c8ce');
@@ -1608,7 +1617,7 @@ function onClick(e) {
         list.splice(index, 1); if(group==='models')S.settingsSubmodelLists.splice(index,1); if (group === 'colors') S.settingsColors.splice(index, 1);
       } else {
         var destination = index + (act === 'setting-up' ? -1 : 1);
-        if (destination < 0 || destination >= list.length) break;
+        if (destination < 0 || destination >= list.length || (group==='stockStatuses' && destination<2)) break;
         var item = list[index]; list[index] = list[destination]; list[destination] = item;
         if(group==='models'){var submodelChildren=S.settingsSubmodelLists[index];S.settingsSubmodelLists[index]=S.settingsSubmodelLists[destination];S.settingsSubmodelLists[destination]=submodelChildren;}
         if (group === 'colors') { var hex = S.settingsColors[index]; S.settingsColors[index] = S.settingsColors[destination]; S.settingsColors[destination] = hex; }
@@ -1647,7 +1656,7 @@ function onClick(e) {
 
     case 'open-edit': {
       var c = carById(id); if (!c) break;
-      if (!can().stock || ['Available','Reserved','FloorPlan'].indexOf(c.status) < 0) break;
+      if (!can().stock || !(isStockStatus(c.status)||c.status==='FloorPlan')) break;
       S.modal = { type:'edit', carId:id, floor:c.status==='FloorPlan',returnTo:dashboardBack };
       S.form = { model:c.model, submodel:c.submodel, color:c.color, location:c.location,
                  vin:c.vin, buyPrice:c.buyPrice, status:c.stockStatus || c.status, receiveDate:c.receiveDate,
@@ -1656,13 +1665,13 @@ function onClick(e) {
       render(); break;
     }
     case 'open-transfer':
-      if (!can().stock || !carById(id) || ['Available','Reserved'].indexOf(carById(id).status) < 0) break;
+      if (!can().stock || !carById(id) || !isStockStatus(carById(id).status)) break;
       S.modal = { type:'transfer', carId:id, returnTo:dashboardBack };
       S.form = { transferDate: today(), transferTo:'' };
       render(); break;
 
     case 'open-deliver':
-      if (!can().stock || !carById(id) || ['Available','Reserved'].indexOf(carById(id).status) < 0) break;
+      if (!can().stock || !carById(id) || !isStockStatus(carById(id).status)) break;
       S.modal = { type:'deliver', carId:id, returnTo:dashboardBack };
       S.form = { salesCode:'', customerName:'', releaseDate:today(), sellPrice:'', claims:[{ detail:'', amount:'' }] };
       render(); break;

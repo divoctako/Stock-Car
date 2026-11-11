@@ -22,6 +22,16 @@ BEGIN
  IF TG_TABLE_NAME='cars' THEN
    IF TG_OP<>'DELETE' THEN
      IF NEW.status IS NULL THEN NEW.status='Available'; END IF;
+     IF current_setting('stock.app_write',true) IS DISTINCT FROM '1' THEN
+       IF (TG_OP='INSERT' OR NEW.status IS DISTINCT FROM OLD.status) AND NEW.status NOT IN ('Available','Reserved','Delivered','Transferred','FloorPlan') AND
+         NOT EXISTS(SELECT 1 FROM public.app_values WHERE scope='config' AND owner='' AND path[1]='stockStatuses' AND kind='string' AND value=NEW.status) THEN
+         RAISE EXCEPTION 'Vehicle status must match Settings';
+       END IF;
+       IF NEW.stock_status IS NOT NULL AND (TG_OP='INSERT' OR NEW.stock_status IS DISTINCT FROM OLD.stock_status) AND NEW.stock_status NOT IN ('Available','Reserved') AND
+         NOT EXISTS(SELECT 1 FROM public.app_values WHERE scope='config' AND owner='' AND path[1]='stockStatuses' AND kind='string' AND value=NEW.stock_status) THEN
+         RAISE EXCEPTION 'Floor Plan stock status must match Settings';
+       END IF;
+     END IF;
      IF NEW.status<>'FloorPlan' AND (NEW.vin IS NULL OR btrim(NEW.vin)='') THEN RAISE EXCEPTION 'VIN is required'; END IF;
      IF current_setting('stock.app_write',true) IS DISTINCT FROM '1' AND NEW.inspected IS TRUE AND
        (TG_OP='INSERT' OR OLD.inspected IS DISTINCT FROM NEW.inspected) THEN

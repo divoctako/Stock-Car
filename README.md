@@ -49,4 +49,6 @@ SQL writes and app writes share a revision lock to prevent stale app snapshots f
 
 ## Inventory import workflow
 
+Admin and Stock can manage custom vehicle statuses under Settings. Available and Reserved remain fixed codes with editable labels; Delivered, Transferred and FloorPlan remain workflow states. Custom statuses are counted as active stock, appear in stock filters and can be imported from CSV by code or display label (blank defaults to Available). Removing an option preserves historical vehicle values; same-position renames propagate to vehicles and Floor Plan status. Existing databases must run `npm run db:stock-statuses` before deploying support for custom statuses; new databases receive the constraints through `db:setup`.
+
 The local scripts/import-stock-demo.py reads the original BYD workbook into demo-data/byd-stock-import.json. Then run `node --env-file-if-exists=.env.local scripts/import-byd.mjs` locally to import missing VINs. Existing VINs are skipped. Source workbook and generated inventory are intentionally excluded from GitHub.
