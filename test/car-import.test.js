@@ -10,6 +10,22 @@ function csv(rows){return '\uFEFF'+[IMPORT_COLUMNS,...rows.map(row=>IMPORT_COLUM
 const base={vin:'001IMPORT',model:'Stock Seal',submodel:'Premium',color:'ขาว',location:'ไม่ระบุ Location',receiveDate:'2026-10-28',paymentDueDate:'2026-11-28',batteryNumber:'000BAT',frontMotorNumber:'000MOTOR',manufactureYear:'2026'};
 const body=rows=>({action:'importCars',role:'admin',payload:{csv:csv(rows)}});
 
+test('import accepts single-digit days and months from spreadsheet CSV exports',()=>{
+  for(const receiveDate of ['11/2/2026','11/02/2026','1/2/2026','01/02/2026']) {
+    const state=initialState();
+    const request=body([{...base,receiveDate,paymentDueDate:'9/3/2026'}]);
+    assert.equal(previewCarImport(state,request).invalid,0);
+    mutate(state,request);
+    assert.equal(state.cars[0].receiveDate,receiveDate.startsWith('11/')?'2026-02-11':'2026-02-01');
+    assert.equal(state.cars[0].paymentDueDate,'2026-03-09');
+  }
+  for(const receiveDate of ['31/2/2026','29/2/2026','1/13/2026']) {
+    const preview=previewCarImport(initialState(),body([{...base,receiveDate}]));
+    assert.equal(preview.invalid,1);
+    assert.ok(preview.rows[0].errors.some(error=>error.includes('DD/MM/YYYY')));
+  }
+});
+
 test('CSV parses BOM, quotes, commas, multiline values, column order and rejects malformed files',()=>{
   const text=csv([{...base,submodel:'Premium, "Plus"\nEdition'}]);
   const rows=parseCarCSV(text);assert.equal(rows[0].payload.submodel,'Premium, "Plus"\nEdition');assert.equal(rows[0].line,2);

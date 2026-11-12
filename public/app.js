@@ -1204,7 +1204,7 @@ function viewModal() {
   } else if (m.type === 'import-cars') {
     var preview=f.preview;
     body='<div class="csv-import-tools"><a class="btn btn-outline" href="/stock-import-template.csv" download>ดาวน์โหลดแบบฟอร์ม CSV</a><label class="fld">เลือกไฟล์ CSV<input type="file" accept=".csv,text/csv" data-in="import-cars-file" aria-label="เลือกไฟล์ CSV"' + (f.loading ? ' disabled' : '') + '></label></div>' +
-      '<p class="sub">สูงสุด 500 คัน / 200 KB · บันทึกเป็น CSV UTF-8 · วันที่ใช้ YYYY-MM-DD (ค.ศ.)</p>' +
+      '<p class="sub">สูงสุด 500 คัน / 200 KB · บันทึกเป็น CSV UTF-8 · วันที่ใช้ DD/MM/YYYY (ค.ศ.) เช่น 12/11/2026</p>' +
       '<p class="sub">'+(f.target==='floor'?'นำเข้า Floor Plan: เว้นข้อมูลที่ยังไม่มีได้ทุกช่อง ใช้หัวคอลัมน์ตามแบบฟอร์ม':'ช่องบังคับ: vin, model, submodel, color, location, receiveDate')+' · รุ่น สี และสถานที่ที่กรอกต้องตรงกับหน้าตั้งค่า · status ใช้ตัวเลือกใน Setting (ว่าง = พร้อมขาย)</p>' +
       '<p class="sub">buyPrice = ราคาซื้อ (เว้นว่างได้), paymentDueDate = วันครบจ่าย, batteryNumber = รหัสแบตเตอรี่, frontMotorNumber = เลขมอเตอร์/เลขเครื่อง, manufactureYear = ปีผลิต · ตั้งคอลัมน์รหัสเป็นข้อความใน Excel เพื่อเก็บเลข 0 ด้านหน้า</p>' +
       '<div class="note">เพิ่มเฉพาะรถใหม่ ไม่เขียนทับ VIN เดิม หากมีข้อผิดพลาดจะยังไม่นำเข้าทั้งไฟล์</div>' +
