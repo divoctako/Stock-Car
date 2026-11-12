@@ -23,6 +23,8 @@ test('import accepts single-digit days and months from spreadsheet CSV exports',
     const preview=previewCarImport(initialState(),body([{...base,receiveDate}]));
     assert.equal(preview.invalid,1);
     assert.ok(preview.rows[0].errors.some(error=>error.includes('DD/MM/YYYY')));
+    assert.equal(preview.rows[0].payload.receiveDate,receiveDate);
+    assert.ok(preview.rows[0].errors.some(error=>error.includes(receiveDate)&&error.includes('วันที่รับเข้า')));
   }
 });
 
